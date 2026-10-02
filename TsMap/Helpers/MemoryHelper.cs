@@ -209,6 +209,78 @@ namespace TsMap.Helpers
             return (flags & (1 << pos)) != 0;
         }
 
+        /// <summary>
+        /// Wie <see cref="InflateZlib"/>, aber tolerant gegenüber "geschützten" Archiven: bei Fehler
+        /// wird ohne zlib-Kopf/Prüfsumme entpackt (das Spiel prüft sie offenbar nicht) und notfalls
+        /// werden die Daten als unkomprimiert angenommen. Liefert evtl. weniger als <paramref name="size"/> Bytes.
+        /// </summary>
+        internal static byte[] InflateZlibTolerant(byte[] data, long size, string what)
+        {
+            var decompressor = IntPtr.Zero;
+            try
+            {
+                decompressor = LibdeflateWrapper.libdeflate_alloc_decompressor();
+            }
+            catch (DllNotFoundException)
+            {
+                // libdeflate fehlt (nur Windows-DLL beigelegt) -> unten mit .NET entpacken
+            }
+            if (decompressor != IntPtr.Zero)
+            {
+                var dest = new byte[size];
+                var result = LibdeflateWrapper.libdeflate_zlib_decompress(decompressor, data,
+                    (UIntPtr)data.Length, dest, (UIntPtr)size, out var bytesWritten);
+                LibdeflateWrapper.libdeflate_free_decompressor(decompressor);
+                if (result == libdeflate_result.LIBDEFLATE_SUCCESS && bytesWritten.ToUInt64() == (ulong)size) return dest;
+                Logger.Logger.Instance.Warning($"{what}: zlib {result}, {bytesWritten} of {size} bytes - trying raw deflate");
+            }
+
+            // Rohes Deflate ab Byte 2 (zlib-Kopf und Adler-Prüfsumme ignorieren)
+            if (data.Length > 2)
+            {
+                try
+                {
+                    using (var ms = new MemoryStream(data, 2, data.Length - 2))
+                    using (var ds = new System.IO.Compression.DeflateStream(ms, System.IO.Compression.CompressionMode.Decompress))
+                    {
+                        var dest = new byte[size];
+                        var read = 0;
+                        while (read < dest.Length)
+                        {
+                            var n = ds.Read(dest, read, dest.Length - read);
+                            if (n <= 0) break;
+                            read += n;
+                        }
+                        if (read > 0)
+                        {
+                            if (read < dest.Length)
+                            {
+                                Logger.Logger.Instance.Warning($"{what}: raw deflate gave {read} of {size} bytes");
+                                Array.Resize(ref dest, read);
+                            }
+                            return dest;
+                        }
+                    }
+                }
+                catch (Exception e)
+                {
+                    Logger.Logger.Instance.Warning($"{what}: raw deflate failed: {e.Message}");
+                }
+            }
+
+            // Unkomprimiert abgelegt?
+            if (data.Length >= size)
+            {
+                Logger.Logger.Instance.Warning($"{what}: using block as uncompressed data");
+                var dest = new byte[size];
+                Array.Copy(data, dest, size);
+                return dest;
+            }
+
+            Logger.Logger.Instance.Error($"{what}: could not decompress block ({data.Length} bytes, expected {size})");
+            return Array.Empty<byte>();
+        }
+
         internal static byte[] InflateZlib(byte[] data, long compressedSize, long size)
         {
             var dest = new byte[size];
