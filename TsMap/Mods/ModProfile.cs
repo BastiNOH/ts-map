@@ -31,6 +31,30 @@ namespace TsMap.Mods
         {
             return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), Name(game));
         }
+
+        /// <summary>
+        /// Ordner mit Profilen und Mods des Spiels. Berücksichtigt die Steam-Startoption
+        /// "-homedir" (z.B. "-homedir E:\Game_Data" -> "E:\Game_Data\Euro Truck Simulator 2"),
+        /// sonst "Eigene Dokumente\&lt;Spiel&gt;".
+        /// </summary>
+        public static string ResolveDocumentsDir(Game game, out List<string> searched)
+        {
+            searched = new List<string>();
+            var homeDir = SteamLocator.FindHomeDirFromLaunchOptions(game);
+            if (!string.IsNullOrEmpty(homeDir))
+            {
+                searched.Add(Path.Combine(homeDir, Name(game)));
+                searched.Add(homeDir);
+            }
+            searched.Add(DocumentsDir(game));
+
+            foreach (var dir in searched)
+            {
+                if (Directory.Exists(Path.Combine(dir, "profiles")) || Directory.Exists(Path.Combine(dir, "steam_profiles")))
+                    return dir;
+            }
+            return searched[0];
+        }
     }
 
     /// <summary>
@@ -72,6 +96,70 @@ namespace TsMap.Mods
                 .Select(lib => Path.Combine(lib, "steamapps", "workshop", "content", GameInfo.SteamAppId(game)))
                 .Where(Directory.Exists)
                 .ToList();
+        }
+
+        /// <summary>
+        /// Liest "-homedir" aus den Steam-Startoptionen des Spiels (Steam\userdata\&lt;id&gt;\config\localconfig.vdf).
+        /// </summary>
+        public static string FindHomeDirFromLaunchOptions(Game game)
+        {
+            var steamPath = GetSteamPath();
+            if (steamPath == null) return null;
+
+            var userdata = Path.Combine(steamPath, "userdata");
+            if (!Directory.Exists(userdata)) return null;
+
+            var configs = Directory.GetDirectories(userdata)
+                .Select(d => Path.Combine(d, "config", "localconfig.vdf"))
+                .Where(File.Exists)
+                .OrderByDescending(File.GetLastWriteTime);
+
+            foreach (var cfg in configs)
+            {
+                string text;
+                try { text = File.ReadAllText(cfg); }
+                catch (IOException) { continue; }
+
+                var home = ParseHomeDir(FindLaunchOptions(text, GameInfo.SteamAppId(game)));
+                if (!string.IsNullOrEmpty(home)) return home;
+            }
+            return null;
+        }
+
+        /// <summary>LaunchOptions des Blocks "appId" { ... } aus einer VDF-Datei.</summary>
+        public static string FindLaunchOptions(string vdf, string appId)
+        {
+            foreach (Match m in Regex.Matches(vdf, "\"" + Regex.Escape(appId) + "\"\\s*\\{"))
+            {
+                var block = ExtractBlock(vdf, m.Index + m.Length - 1);
+                var opt = Regex.Match(block, "\"LaunchOptions\"\\s+\"((?:[^\"\\\\]|\\\\.)*)\"", RegexOptions.IgnoreCase);
+                if (opt.Success) return Regex.Unescape(opt.Groups[1].Value);
+            }
+            return null;
+        }
+
+        /// <summary>"-homedir E:\Game_Data" oder "-homedir \"E:\Spiele Daten\"" -> Pfad</summary>
+        public static string ParseHomeDir(string launchOptions)
+        {
+            if (string.IsNullOrEmpty(launchOptions)) return null;
+            var m = Regex.Match(launchOptions, "-homedir\\s+(?:\"([^\"]+)\"|(\\S+))", RegexOptions.IgnoreCase);
+            if (!m.Success) return null;
+            return (m.Groups[1].Success ? m.Groups[1].Value : m.Groups[2].Value).TrimEnd('\\', '/');
+        }
+
+        private static string ExtractBlock(string text, int openBrace)
+        {
+            int depth = 0;
+            bool inQuotes = false;
+            for (int i = openBrace; i < text.Length; i++)
+            {
+                char c = text[i];
+                if (c == '"' && (i == 0 || text[i - 1] != '\\')) inQuotes = !inQuotes;
+                if (inQuotes) continue;
+                if (c == '{') depth++;
+                else if (c == '}' && --depth == 0) return text.Substring(openBrace, i - openBrace + 1);
+            }
+            return text.Substring(openBrace);
         }
 
         private static string GetSteamPath()
