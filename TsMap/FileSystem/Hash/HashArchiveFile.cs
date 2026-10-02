@@ -54,6 +54,23 @@ namespace TsMap.FileSystem.Hash
         /// Does minimal validation on the file and reads all the <see cref="Entry">Entries</see>
         /// </summary>
         /// <returns>Whether parsing was successful or not</returns>
+        private static bool LooksValid(byte[] rawEntries, byte[] rawMetadata, uint entryCount)
+        {
+            var sample = Math.Min(entryCount, 2000u);
+            var step = Math.Max(1u, entryCount / sample);
+            int checkedCount = 0, valid = 0;
+            for (uint i = 0; i < entryCount && checkedCount < sample; i += step, checkedCount++)
+            {
+                var offset = (int)(i * EntryV2BlockSize);
+                var metadataIndex = BitConverter.ToInt32(rawEntries, offset + 0x08);
+                var pos = (long)metadataIndex * 4;
+                if (metadataIndex < 0 || pos + 4 > rawMetadata.Length) continue;
+                var type = BitConverter.ToUInt32(rawMetadata, (int)pos) >> 0x18;
+                if (Enum.IsDefined(typeof(HashEntryTypes), (int)type)) valid++;
+            }
+            return checkedCount > 0 && valid * 10 >= checkedCount * 8; // mind. 80 % plausibel
+        }
+
         public override bool Parse()
         {
             if (!File.Exists(_path))
@@ -177,6 +194,14 @@ namespace TsMap.FileSystem.Hash
                 // Geschützte Archive enthalten teils unsinnige Einträge: nur lesen, was da ist, und
                 // fehlerhafte Einträge überspringen statt das ganze Archiv zu verwerfen
                 var entryCount = Math.Min(_hashHeader.EntryCount, (uint)(rawEntries.Length / EntryV2BlockSize));
+                // Plausibilitätsprüfung vor dem Einhängen: liefert die Tabelle (z.B. nach einem
+                // Notbehelf beim Entpacken) überwiegend unbekannte Metadaten-Typen, ist sie Datenmüll
+                if (entryCount > 0 && !LooksValid(rawEntries, rawMetadataBytes, entryCount))
+                {
+                    Logger.Instance.Error($"'{Path.GetFileName(_path)}': entry table is not readable (unknown format or protected), archive skipped");
+                    return false;
+                }
+
                 var badEntries = 0;
                 for (var i = 0; i < entryCount; i++)
                 {
