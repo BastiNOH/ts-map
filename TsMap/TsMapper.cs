@@ -397,7 +397,9 @@ namespace TsMap
 
             foreach (var mod in _mods)
             {
-                if (mod.Load) UberFileSystem.Instance.AddSourceFile(mod.ModPath);
+                if (!mod.Load) continue;
+                if (Directory.Exists(mod.ModPath)) UberFileSystem.Instance.AddSourceFolder(mod.ModPath);
+                else UberFileSystem.Instance.AddSourceFile(mod.ModPath);
             }
 
             UberFileSystem.Instance.AddSourceFile(Path.Combine(Environment.CurrentDirectory,

@@ -1,0 +1,27 @@
+name: TsMap.Cli
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Build
+        run: dotnet publish TsMap.Cli/TsMap.Cli.csproj -c Release -p:Platform=x64 -r win-x64 --self-contained false -o publish
+
+      - name: Smoke test
+        run: ./publish/TsMap.Cli.exe --help
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TsMap.Cli-win-x64
+          path: publish/

@@ -74,6 +74,17 @@ namespace TsMap.FileSystem
         /// <param name="path">Path to the directory where to find the files to include</param>
         /// <param name="searchPattern">Search pattern to select specific files eg. "*.scs"</param>
         /// <returns>Whether or not all files were added successfully</returns>
+        /// <summary>
+        /// Adds an unpacked mod folder (containing def/, map/, ...) as a source
+        /// </summary>
+        public bool AddSourceFolder(string path)
+        {
+            var folder = new Folder.FolderArchiveFile(path);
+            if (!folder.Parse()) return false;
+            _archiveFiles.Add(folder);
+            return true;
+        }
+
         public bool AddSourceDirectory(string path, string searchPattern = "*.scs")
         {
             if (!Directory.Exists(path))
