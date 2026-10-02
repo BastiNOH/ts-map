@@ -195,12 +195,21 @@ namespace TsMap.FileSystem
         public UberFile GetFile(string path)
         {
             if (string.IsNullOrEmpty(path)) return null; // z.B. Material ohne Textur
+            // Gibt es die Datei mit und ohne Salt, gewinnt das zuletzt eingehängte Archiv (Mod-Priorität)
+            UberFile best = null;
+            var bestOrder = int.MinValue;
             foreach (var hash in CandidateHashes(path))
             {
                 UberFile file;
-                if (Files.TryGetValue(hash, out file)) return file;
+                if (!Files.TryGetValue(hash, out file) || file == null) continue;
+                var order = file.Entry?.GetArchiveFile()?.MountOrder ?? 0;
+                if (best == null || order > bestOrder)
+                {
+                    best = file;
+                    bestOrder = order;
+                }
             }
-            return null;
+            return best;
         }
 
         /// <summary>
