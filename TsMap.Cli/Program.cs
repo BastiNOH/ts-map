@@ -159,6 +159,11 @@ namespace TsMap.Cli
                 Console.Error.WriteLine("Karte konnte nicht geladen werden (Details im ts-map Log unter %LOCALAPPDATA%\\ts-map\\TsMap.log).");
                 return 1;
             }
+            foreach (var failed in TsMap.FileSystem.UberFileSystem.Instance.FailedSources)
+            {
+                if (failed.Key.EndsWith("custom_resources.zip", StringComparison.OrdinalIgnoreCase)) continue;
+                Console.WriteLine($"  WARNUNG: übersprungen (nicht lesbar): {Path.GetFileName(failed.Key)} - {failed.Value}");
+            }
             Console.WriteLine($"Karte geladen in {sw.Elapsed.TotalSeconds:0.0}s ({mapper.Cities.Count} Städte, {mapper.Roads.Count} Straßen, {mapper.Prefabs.Count} Prefabs).");
             if (mapper.MissingRoadLookCount > 0)
                 Console.WriteLine($"  Hinweis: {mapper.MissingRoadLookCount} Straßentypen ohne Definition (z.B. aus Mods) - mit Standardbreite gezeichnet.");

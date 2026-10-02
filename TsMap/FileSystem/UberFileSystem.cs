@@ -18,6 +18,9 @@ namespace TsMap.FileSystem
         internal Dictionary<ulong, UberDirectory> Directories { get; } = new Dictionary<ulong, UberDirectory>();
         private readonly List<ArchiveFile> _archiveFiles = new List<ArchiveFile>();
 
+        /// <summary>Archive, die nicht gelesen werden konnten (Pfad, Grund) - werden übersprungen.</summary>
+        public List<KeyValuePair<string, string>> FailedSources { get; } = new List<KeyValuePair<string, string>>();
+
         /// <summary>
         /// Reads and adds a single file to the filesystem
         /// Checks if file is an SCS Hash file, if not, assumes it's a zip file
@@ -25,6 +28,22 @@ namespace TsMap.FileSystem
         /// <param name="path">Path for the archive file to add</param>
         /// <returns>Whether or not the file was parsed correctly</returns>
         public bool AddSourceFile(string path)
+        {
+            try
+            {
+                if (AddSourceFileCore(path)) return true;
+                FailedSources.Add(new KeyValuePair<string, string>(path, "nicht lesbar (Details im Log)"));
+            }
+            catch (Exception e)
+            {
+                // z.B. "geschützte" Mods mit absichtlich beschädigten Tabellen: überspringen statt abbrechen
+                Logger.Instance.Error($"Could not load '{path}': {e.GetType().Name}: {e.Message}");
+                FailedSources.Add(new KeyValuePair<string, string>(path, e.GetType().Name + ": " + e.Message));
+            }
+            return false;
+        }
+
+        private bool AddSourceFileCore(string path)
         {
             if (!File.Exists(path))
             {
