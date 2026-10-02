@@ -11,9 +11,15 @@ namespace TsMap.FileSystem
 
         public BinaryReader Br { get; protected set; }
 
+        private static int _mountCounter;
+
+        /// <summary>Reihenfolge des Einhängens: später eingehängt = höhere Priorität (wie im Spiel).</summary>
+        internal int MountOrder { get; }
+
         public ArchiveFile(string path)
         {
             _path = path;
+            MountOrder = System.Threading.Interlocked.Increment(ref _mountCounter);
         }
 
         public abstract bool Parse();
