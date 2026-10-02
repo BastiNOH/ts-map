@@ -29,7 +29,8 @@ TsMap.Cli --game ets2 --list          # nur erkannte Mods + Reihenfolge anzeigen
 - Lokale Mods aus `Dokumente\<Spiel>\mod` als `.scs`, `.zip` oder entpackter Ordner
 - Reihenfolge wie im Spiel: oben in der Liste = höchste Priorität
 - Ausgabe: `Tiles/`, `TileMapInfo.json`, `Cities.json`, `Countries.json`, `Overlays.json`, `Overlays/`
-- Weitere Optionen: `--zoom 0-8`, `--no-tiles`, `--no-mods`, `--exclude <Text>` (siehe `--help`)
+- DLC-Prüfung: nur Karten-DLCs, die als `dlc_*.scs` im Spielordner liegen, werden gezeichnet (`--dlc alle` = Standardverhalten, `--dlc-an`/`--dlc-aus <guard>` zum Übersteuern)
+- Weitere Optionen: `--zoom 0-9` (Standard), `--no-tiles`, `--no-mods`, `--exclude <Text>` (siehe `--help`)
 
 Build: `dotnet publish TsMap.Cli -c Release -p:Platform=x64 -r win-x64` (.NET 10, Windows)
 

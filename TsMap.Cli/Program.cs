@@ -30,10 +30,13 @@ namespace TsMap.Cli
             public string GameVersion;
             public string OutDir;
             public int MinZoom = 0;
-            public int MaxZoom = 8;
+            public int MaxZoom = 9;
             public bool Tiles = true;
             public bool ListOnly;
             public bool NoMods;
+            public bool DlcAuto = true;
+            public readonly List<string> DlcOn = new List<string>();
+            public readonly List<string> DlcOff = new List<string>();
             public readonly List<string> Exclude = new List<string>();
             public readonly List<string> ExtraWorkshopDirs = new List<string>();
         }
@@ -109,7 +112,13 @@ namespace TsMap.Cli
                 Console.WriteLine();
             }
 
-            if (o.ListOnly) return 0;
+            if (o.ListOnly)
+            {
+                // DLC-Prüfung braucht nur den Spielordner, nicht die geladene Karte
+                PrintDlcReport(DlcDetector.Apply(
+                    game == Game.Ets2 ? DlcGuardsEts2() : DlcGuardsAts(), gameDir, o.DlcOn, o.DlcOff), o);
+                return 0;
+            }
 
             if (string.IsNullOrEmpty(o.OutDir))
             {
@@ -133,6 +142,8 @@ namespace TsMap.Cli
             }
             Console.WriteLine($"Karte geladen in {sw.Elapsed.TotalSeconds:0.0}s ({mapper.Cities.Count} Städte).");
 
+            CheckDlcs(mapper, gameDir, o);
+
             mapper.ExportInfo(ExportFlags.All, outDir);
 
             var renderer = new TsMapRenderer(mapper);
@@ -141,6 +152,34 @@ namespace TsMap.Cli
 
             Console.WriteLine($"Fertig in {sw.Elapsed.TotalMinutes:0.0} min -> {outDir}");
             return 0;
+        }
+
+        private static List<TsMap.Common.DlcGuard> DlcGuardsEts2() => TsMap.Common.Consts.DefaultEts2DlcGuards;
+        private static List<TsMap.Common.DlcGuard> DlcGuardsAts() => TsMap.Common.Consts.DefaultAtsDlcGuards;
+
+        private static void CheckDlcs(TsMapper mapper, string gameDir, Options o)
+        {
+            if (!o.DlcAuto && o.DlcOn.Count == 0 && o.DlcOff.Count == 0) return;
+            var report = DlcDetector.Apply(mapper.GetDlcGuardsForCurrentGame(), o.DlcAuto ? gameDir : null, o.DlcOn, o.DlcOff);
+            PrintDlcReport(report, o);
+        }
+
+        private static void PrintDlcReport(DlcDetector.Report report, Options o)
+        {
+            Console.WriteLine();
+            Console.WriteLine($"DLC-Prüfung: {report.InstalledDlcs.Count} DLC-Archive im Spielordner");
+            if (!o.DlcAuto)
+                Console.WriteLine("  Modus 'alle': DLC-Guards auf ts-map-Standard.");
+            else if (report.DetectionSkipped)
+                Console.WriteLine("  Keine dlc_*.scs gefunden – DLC-Guards bleiben auf Standard.");
+
+            var aktiv = report.Guards.Where(g => g.Enabled && g.Guard.Index != 0).ToList();
+            var inaktiv = report.Guards.Where(g => !g.Enabled).ToList();
+            Console.WriteLine($"  Aktiv ({aktiv.Count}):   {string.Join(", ", aktiv.Select(g => g.Guard.Name))}");
+            Console.WriteLine($"  Inaktiv ({inaktiv.Count}): {string.Join(", ", inaktiv.Select(g => $"{g.Guard.Name} [{g.Reason}]"))}");
+            if (report.UnmatchedDlcs.Count > 0)
+                Console.WriteLine($"  Ohne Karten-Guard (Fahrzeuge/Ladung oder neu): {string.Join(", ", report.UnmatchedDlcs)}");
+            Console.WriteLine();
         }
 
         private static void GenerateTiles(TsMapper mapper, TsMapRenderer renderer, MapPalette palette, string outDir, int minZoom, int maxZoom, bool createTiles)
@@ -245,6 +284,14 @@ namespace TsMap.Cli
                     case "--no-mods": o.NoMods = true; break;
                     case "--exclude": o.Exclude.Add(Next()); break;
                     case "--workshop-dir": o.ExtraWorkshopDirs.Add(Next()); break;
+                    case "--dlc":
+                        var mode = Next().ToLowerInvariant();
+                        if (mode == "auto") o.DlcAuto = true;
+                        else if (mode == "alle" || mode == "all") o.DlcAuto = false;
+                        else throw new ArgumentException("--dlc auto|alle");
+                        break;
+                    case "--dlc-an": o.DlcOn.Add(Next()); break;
+                    case "--dlc-aus": o.DlcOff.Add(Next()); break;
                     default: throw new ArgumentException($"Unbekannte Option '{args[i]}'");
                 }
             }
@@ -268,10 +315,13 @@ namespace TsMap.Cli
   --game-version <ver>   z.B. 1.61 – wählt bei Workshop-Mods das passende Paket (Standard: neuestes)
   --workshop-dir <pfad>  zusätzlicher Workshop-Ordner (steamapps\workshop\content\<appid>)
   --exclude <text>       Mod überspringen, deren Name/Paket den Text enthält (mehrfach möglich)
-  --zoom <von-bis>       Zoomstufen der Kacheln (Standard: 0-8)
+  --zoom <von-bis>       Zoomstufen der Kacheln (Standard: 0-9)
+  --dlc <auto|alle>      auto: nur installierte DLCs rendern (Standard), alle: ts-map-Standard
+  --dlc-an <guard>       DLC-Guard erzwingen, z.B. dlc_wa_and_or (mehrfach möglich)
+  --dlc-aus <guard>      DLC-Guard abschalten (mehrfach möglich)
   --no-tiles             nur JSON-Dateien exportieren
   --no-mods              ohne Mods rendern
-  --list                 nur erkannte Mods und Reihenfolge anzeigen");
+  --list                 nur erkannte Mods, Reihenfolge und DLCs anzeigen");
         }
     }
 
