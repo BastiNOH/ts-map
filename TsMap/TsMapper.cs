@@ -406,6 +406,15 @@ namespace TsMap
             }
         }
 
+        public class SectorStats
+        {
+            public int Sectors;
+            public int Items;
+        }
+
+        /// <summary>Gelesene Kartensektoren und Objekte je Archiv (Dateiname), aus dem der Sektor stammt</summary>
+        public Dictionary<string, SectorStats> SectorsByArchive { get; } = new Dictionary<string, SectorStats>(StringComparer.OrdinalIgnoreCase);
+
         /// <summary>Sektoren, die über ihren Namen gefunden wurden, aber in keiner Ordnerliste stehen.</summary>
         public int HiddenSectorCount { get; private set; }
 
@@ -471,8 +480,11 @@ namespace TsMap
             if (_sectorFiles == null) return;
             var preMapParseTime = DateTime.Now.Ticks;
             Sectors = _sectorFiles.Select(file => new TsSector(this, file)).ToList();
+            SectorsByArchive.Clear();
             foreach (var sec in Sectors)
             {
+                var archive = sec.GetUberFile()?.Entry?.GetArchiveFile()?.GetPath();
+                var itemsBefore = MapItems.Count;
                 try
                 {
                     sec.Parse();
@@ -482,7 +494,18 @@ namespace TsMap
                     // ein fehlerhafter Sektor (z.B. aus geschützten Mods) soll nicht die ganze Karte verhindern
                     Logger.Instance.Error($"Could not parse sector '{sec.FilePath}': {e.GetType().Name}: {e.Message}");
                 }
+
+                if (archive != null)
+                {
+                    var name = Path.GetFileName(archive.TrimEnd('\\', '/'));
+                    SectorStats stats;
+                    if (!SectorsByArchive.TryGetValue(name, out stats)) SectorsByArchive[name] = stats = new SectorStats();
+                    stats.Sectors++;
+                    stats.Items += MapItems.Count - itemsBefore;
+                }
             }
+            foreach (var stats in SectorsByArchive)
+                Logger.Instance.Info($"Sectors from '{stats.Key}': {stats.Value.Sectors} ({stats.Value.Items} items)");
             Sectors.ForEach(sec => sec.ClearFileData());
             Logger.Instance.Info($"It took {(DateTime.Now.Ticks - preMapParseTime) / TimeSpan.TicksPerMillisecond} ms to parse all (*.base) files");
 

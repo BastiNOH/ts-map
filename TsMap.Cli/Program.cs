@@ -167,6 +167,10 @@ namespace TsMap.Cli
             Console.WriteLine($"Karte geladen in {sw.Elapsed.TotalSeconds:0.0}s ({mapper.Cities.Count} Städte, {mapper.Roads.Count} Straßen, {mapper.Prefabs.Count} Prefabs).");
             if (mapper.HiddenSectorCount > 0)
                 Console.WriteLine($"  Hinweis: {mapper.HiddenSectorCount} Kartensektoren ohne Ordnerliste gefunden (geschützte Mods) - mitgezeichnet.");
+            if (mapper.SectorsByArchive.Count > 0)
+                Console.WriteLine("  Kartensektoren je Archiv: " + string.Join(", ", mapper.SectorsByArchive
+                    .OrderByDescending(a => a.Value.Sectors)
+                    .Select(a => $"{a.Key} {a.Value.Sectors} ({a.Value.Items} Objekte)")));
             if (mapper.MissingRoadLookCount > 0)
                 Console.WriteLine($"  Hinweis: {mapper.MissingRoadLookCount} Straßentypen ohne Definition (z.B. aus Mods) - mit Standardbreite gezeichnet.");
             PrintLogSummary();
