@@ -203,17 +203,44 @@ namespace TsMap
                 return;
             }
 
-            foreach (var roadLookFileName in worldDirectory.GetFiles("road_look"))
+            // road_look*.sii/.sui plus alles, was diese per @include einbinden (Mods benennen ihre Dateien frei)
+            var queue = new Queue<string>(worldDirectory.GetFiles("road_look").Where(f => f.StartsWith("road")).Select(f => "def/world/" + f));
+            var seen = new HashSet<string>(queue, StringComparer.OrdinalIgnoreCase);
+            while (queue.Count > 0)
             {
-                if (!roadLookFileName.StartsWith("road")) continue;
-                var roadLookFile = UberFileSystem.Instance.GetFile($"def/world/{roadLookFileName}");
+                var roadLookPath = queue.Dequeue();
+                var roadLookFile = UberFileSystem.Instance.GetFile(roadLookPath);
+                if (roadLookFile == null) continue;
 
                 var data = roadLookFile.Entry.Read();
+                // Mods liefern Definitionen oft verschlüsselt (ScsC)
+                if (data.Length >= 4 && BitConverter.ToUInt32(data, 0) == 0x43736353)
+                {
+                    try
+                    {
+                        data = Mods.SiiFile.Decrypt(data);
+                    }
+                    catch (Exception e)
+                    {
+                        Logger.Instance.Error($"Could not decrypt '{roadLookPath}': {e.Message}");
+                        continue;
+                    }
+                }
                 var lines = Encoding.UTF8.GetString(data).Split('\n');
                 TsRoadLook roadLook = null;
 
                 foreach (var line in lines)
                 {
+                    var trimmed = line.Trim();
+                    if (trimmed.StartsWith("@include"))
+                    {
+                        var include = trimmed.Substring("@include".Length).Trim().Trim('"');
+                        if (include.Length == 0) continue;
+                        var includePath = include.StartsWith("/") ? include.TrimStart('/') : "def/world/" + include;
+                        if (seen.Add(includePath)) queue.Enqueue(includePath);
+                        continue;
+                    }
+
                     var (validLine, key, value) = SiiHelper.ParseLine(line);
                     if (validLine)
                     {
@@ -241,8 +268,8 @@ namespace TsMap
                         if (roadLook.Token != 0 && !_roadLookup.ContainsKey(roadLook.Token))
                         {
                             _roadLookup.Add(roadLook.Token, roadLook);
-                            roadLook = null;
                         }
+                        roadLook = null;
                     }
                 }
             }
@@ -591,6 +618,32 @@ namespace TsMap
         public TsRoadLook LookupRoadLook(ulong lookId)
         {
             return _roadLookup.ContainsKey(lookId) ? _roadLookup[lookId] : null;
+        }
+
+        private readonly Dictionary<ulong, TsRoadLook> _missingRoadLooks = new Dictionary<ulong, TsRoadLook>();
+
+        /// <summary>
+        /// Ersatz für einen nicht gefundenen road_look (2 Spuren); wird pro Straßentyp nur einmal gemeldet.
+        /// </summary>
+        public TsRoadLook MissingRoadLook(ulong lookId, string source)
+        {
+            lock (_missingRoadLooks)
+            {
+                TsRoadLook look;
+                if (_missingRoadLooks.TryGetValue(lookId, out look)) return look;
+
+                look = new TsRoadLook(lookId);
+                look.LanesLeft.Add("unknown");
+                look.LanesRight.Add("unknown");
+                _missingRoadLooks.Add(lookId, look);
+                Logger.Instance.Warning($"Could not find RoadLook: '{ScsToken.TokenToString(lookId)}'({lookId:X}), first used in {source}; drawing with default width");
+                return look;
+            }
+        }
+
+        public int MissingRoadLookCount
+        {
+            get { lock (_missingRoadLooks) return _missingRoadLooks.Count; }
         }
 
         public TsPrefab LookupPrefab(ulong prefabId)

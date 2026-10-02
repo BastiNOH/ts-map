@@ -20,12 +20,21 @@ namespace TsMap.Helpers.Logger
 
         public static Logger Instance => _instance.Value;
 
+        /// <summary>Jede Logzeile auch auf der Konsole ausgeben (TsMap.Cli schaltet das ab).</summary>
+        public static bool ConsoleOutput = true;
+
+        private int _errors, _warnings;
+        public int ErrorCount => _errors;
+        public int WarningCount => _warnings;
+        public string LogFilePath { get; }
+
         public Logger()
         {
             var logDirPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ts-map");
             if (!Directory.Exists(logDirPath)) Directory.CreateDirectory(logDirPath);
 
-            _fs = new FileStream(Path.Combine(logDirPath, "TsMap.log"), FileMode.Create);
+            LogFilePath = Path.Combine(logDirPath, "TsMap.log");
+            _fs = new FileStream(LogFilePath, FileMode.Create);
             _sw = new StreamWriter(_fs);
             Task.Run(() =>
             {
@@ -35,7 +44,7 @@ namespace TsMap.Helpers.Logger
 
                     _sw.WriteLine(text);
                     _sw.Flush();
-                    Console.WriteLine(text);
+                    if (ConsoleOutput) Console.WriteLine(text);
                 }
             });
         }
@@ -60,6 +69,7 @@ namespace TsMap.Helpers.Logger
         {
             if (Consts.MinimumLogLevel <= LogLevel.Warning)
             {
+                System.Threading.Interlocked.Increment(ref _warnings);
                 _bc.Add(new LogLine(LogLevel.Warning, msg, callerName, callerPath));
             }
         }
@@ -68,6 +78,7 @@ namespace TsMap.Helpers.Logger
         {
             if (Consts.MinimumLogLevel <= LogLevel.Error)
             {
+                System.Threading.Interlocked.Increment(ref _errors);
                 _bc.Add(new LogLine(LogLevel.Error, msg, callerName, callerPath));
             }
         }

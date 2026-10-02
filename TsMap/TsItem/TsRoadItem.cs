@@ -59,9 +59,9 @@ namespace TsMap.TsItem
 
             if (RoadLook == null)
             {
-                Valid = false;
-                Logger.Instance.Error($"Could not find RoadLook: '{ScsToken.TokenToString(roadLookId)}'({roadLookId:X}), item uid: 0x{Uid:X}, " +
-                        $"in {Path.GetFileName(Sector.FilePath)} @ {fileOffset} from '{Sector.GetUberFile().Entry.GetArchiveFile().GetPath()}'");
+                // Unbekannter Straßentyp (z.B. Mod-Definition nicht lesbar): mit Standardbreite zeichnen statt weglassen
+                RoadLook = Sector.Mapper.MissingRoadLook(roadLookId,
+                    $"{Path.GetFileName(Sector.FilePath)} from '{Sector.GetUberFile().Entry.GetArchiveFile().GetPath()}'");
             }
             StartNodeUid = MemoryHelper.ReadUInt64(Sector.Stream, fileOffset += 0x08 + 0x48); // 0x08(RoadLook) + 0x48(sets cursor before node_uid[])
             EndNodeUid = MemoryHelper.ReadUInt64(Sector.Stream, fileOffset += 0x08); // 0x08(startNodeUid)
@@ -80,9 +80,9 @@ namespace TsMap.TsItem
 
             if (RoadLook == null)
             {
-                Valid = false;
-                Logger.Instance.Error($"Could not find RoadLook: '{ScsToken.TokenToString(roadLookId)}'({roadLookId:X}), item uid: 0x{Uid:X}, " +
-                        $"in {Path.GetFileName(Sector.FilePath)} @ {fileOffset} from '{Sector.GetUberFile().Entry.GetArchiveFile().GetPath()}'");
+                // Unbekannter Straßentyp (z.B. Mod-Definition nicht lesbar): mit Standardbreite zeichnen statt weglassen
+                RoadLook = Sector.Mapper.MissingRoadLook(roadLookId,
+                    $"{Path.GetFileName(Sector.FilePath)} from '{Sector.GetUberFile().Entry.GetArchiveFile().GetPath()}'");
             }
             StartNodeUid = MemoryHelper.ReadUInt64(Sector.Stream, fileOffset += 0x08 + 0x48); // 0x08(RoadLook) + 0x48(sets cursor before node_uid[])
             EndNodeUid = MemoryHelper.ReadUInt64(Sector.Stream, fileOffset += 0x08); // 0x08(startNodeUid)
@@ -100,9 +100,9 @@ namespace TsMap.TsItem
             RoadLook = Sector.Mapper.LookupRoadLook(roadLookId); // 0x09(flags)
             if (RoadLook == null)
             {
-                Valid = false;
-                Logger.Instance.Error($"Could not find RoadLook: '{ScsToken.TokenToString(roadLookId)}'({roadLookId:X}), item uid: 0x{Uid:X}, " +
-                        $"in {Path.GetFileName(Sector.FilePath)} @ {fileOffset} from '{Sector.GetUberFile().Entry.GetArchiveFile().GetPath()}'");
+                // Unbekannter Straßentyp (z.B. Mod-Definition nicht lesbar): mit Standardbreite zeichnen statt weglassen
+                RoadLook = Sector.Mapper.MissingRoadLook(roadLookId,
+                    $"{Path.GetFileName(Sector.FilePath)} from '{Sector.GetUberFile().Entry.GetArchiveFile().GetPath()}'");
             }
             StartNodeUid = MemoryHelper.ReadUInt64(Sector.Stream, fileOffset += 0x08 + 0x50); // 0x08(RoadLook) + 0x50(sets cursor before node_uid[])
             EndNodeUid = MemoryHelper.ReadUInt64(Sector.Stream, fileOffset += 0x08); // 0x08(startNodeUid)
@@ -122,9 +122,9 @@ namespace TsMap.TsItem
 
             if (RoadLook == null)
             {
-                Valid = false;
-                Logger.Instance.Error($"Could not find RoadLook: '{ScsToken.TokenToString(roadLookId)}'({roadLookId:X}), item uid: 0x{Uid:X}, " +
-                        $"in {Path.GetFileName(Sector.FilePath)} @ {fileOffset} from '{Sector.GetUberFile().Entry.GetArchiveFile().GetPath()}'");
+                // Unbekannter Straßentyp (z.B. Mod-Definition nicht lesbar): mit Standardbreite zeichnen statt weglassen
+                RoadLook = Sector.Mapper.MissingRoadLook(roadLookId,
+                    $"{Path.GetFileName(Sector.FilePath)} from '{Sector.GetUberFile().Entry.GetArchiveFile().GetPath()}'");
             }
 
             StartNodeUid = MemoryHelper.ReadUInt64(Sector.Stream, fileOffset += 0x08 + 0xA4); // 0x08(RoadLook) + 0xA4(sets cursor before node_uid[])
@@ -145,9 +145,9 @@ namespace TsMap.TsItem
 
             if (RoadLook == null)
             {
-                Valid = false;
-                Logger.Instance.Error($"Could not find RoadLook: '{ScsToken.TokenToString(roadLookId)}'({roadLookId:X}), item uid: 0x{Uid:X}, " +
-                        $"in {Path.GetFileName(Sector.FilePath)} @ {fileOffset} from '{Sector.GetUberFile().Entry.GetArchiveFile().GetPath()}'");
+                // Unbekannter Straßentyp (z.B. Mod-Definition nicht lesbar): mit Standardbreite zeichnen statt weglassen
+                RoadLook = Sector.Mapper.MissingRoadLook(roadLookId,
+                    $"{Path.GetFileName(Sector.FilePath)} from '{Sector.GetUberFile().Entry.GetArchiveFile().GetPath()}'");
             }
 
             StartNodeUid = MemoryHelper.ReadUInt64(Sector.Stream, fileOffset += 0x08 + 0xB4); // 0x08(RoadLook) + 0xB4(sets cursor before node_uid[])
