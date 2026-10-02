@@ -133,6 +133,7 @@ namespace TsMap.FileSystem
         /// </returns>
         public UberDirectory GetDirectory(string path)
         {
+            if (string.IsNullOrEmpty(path)) return null; // z.B. Material ohne Textur
             UberDirectory first = null;
             List<UberDirectory> all = null;
             foreach (var hash in CandidateHashes(path))
@@ -193,6 +194,7 @@ namespace TsMap.FileSystem
         /// </returns>
         public UberFile GetFile(string path)
         {
+            if (string.IsNullOrEmpty(path)) return null; // z.B. Material ohne Textur
             foreach (var hash in CandidateHashes(path))
             {
                 UberFile file;
