@@ -110,6 +110,8 @@ namespace TsMap.FileSystem.Hash
                 return false;
             }
 
+            UberFileSystem.Instance.RegisterSalt(_hashHeader.Salt);
+
             if (_hashHeader.Version == 1)
             {
 
@@ -329,7 +331,8 @@ namespace TsMap.FileSystem.Hash
                 if (entryCount == 0 && _hashHeader.EntryCount > 0) return false;
             }
 
-            Logger.Instance.Info($"Mounted '{Path.GetFileName(_path)}' with {_hashHeader.EntryCount} entries");
+            Logger.Instance.Info($"Mounted '{Path.GetFileName(_path)}' with {_hashHeader.EntryCount} entries" +
+                                 (_hashHeader.Salt != 0 ? $" (salt {_hashHeader.Salt})" : ""));
             return true;
         }
     }
