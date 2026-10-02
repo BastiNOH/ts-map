@@ -54,21 +54,22 @@ namespace TsMap.FileSystem.Hash
         /// Does minimal validation on the file and reads all the <see cref="Entry">Entries</see>
         /// </summary>
         /// <returns>Whether parsing was successful or not</returns>
-        private static bool LooksValid(byte[] rawEntries, byte[] rawMetadata, uint entryCount)
+        /// <summary>
+        /// Eine echte Eintragstabelle ist nach Hash aufsteigend sortiert (das Spiel sucht binär).
+        /// Datenmüll (z.B. falsch entpackt) ist das praktisch nie.
+        /// </summary>
+        private static bool LooksValid(byte[] rawEntries, uint entryCount)
         {
-            var sample = Math.Min(entryCount, 2000u);
-            var step = Math.Max(1u, entryCount / sample);
-            int checkedCount = 0, valid = 0;
-            for (uint i = 0; i < entryCount && checkedCount < sample; i += step, checkedCount++)
+            if (entryCount < 2) return true;
+            int ascending = 0;
+            var previous = BitConverter.ToUInt64(rawEntries, 0);
+            for (var i = 1; i < entryCount; i++)
             {
-                var offset = (int)(i * EntryV2BlockSize);
-                var metadataIndex = BitConverter.ToInt32(rawEntries, offset + 0x08);
-                var pos = (long)metadataIndex * 4;
-                if (metadataIndex < 0 || pos + 4 > rawMetadata.Length) continue;
-                var type = BitConverter.ToUInt32(rawMetadata, (int)pos) >> 0x18;
-                if (Enum.IsDefined(typeof(HashEntryTypes), (int)type)) valid++;
+                var hash = BitConverter.ToUInt64(rawEntries, i * EntryV2BlockSize);
+                if (hash > previous) ascending++;
+                previous = hash;
             }
-            return checkedCount > 0 && valid * 10 >= checkedCount * 8; // mind. 80 % plausibel
+            return ascending >= (entryCount - 1) * 0.95;
         }
 
         public override bool Parse()
@@ -194,15 +195,15 @@ namespace TsMap.FileSystem.Hash
                 // Geschützte Archive enthalten teils unsinnige Einträge: nur lesen, was da ist, und
                 // fehlerhafte Einträge überspringen statt das ganze Archiv zu verwerfen
                 var entryCount = Math.Min(_hashHeader.EntryCount, (uint)(rawEntries.Length / EntryV2BlockSize));
-                // Plausibilitätsprüfung vor dem Einhängen: liefert die Tabelle (z.B. nach einem
-                // Notbehelf beim Entpacken) überwiegend unbekannte Metadaten-Typen, ist sie Datenmüll
-                if (entryCount > 0 && !LooksValid(rawEntries, rawMetadataBytes, entryCount))
+                // Plausibilitätsprüfung vor dem Einhängen (z.B. nach einem Notbehelf beim Entpacken)
+                if (entryCount > 0 && !LooksValid(rawEntries, entryCount))
                 {
                     Logger.Instance.Error($"'{Path.GetFileName(_path)}': entry table is not readable (unknown format or protected), archive skipped");
                     return false;
                 }
 
                 var badEntries = 0;
+                var decoyEntries = 0;
                 for (var i = 0; i < entryCount; i++)
                 {
                   try
@@ -217,6 +218,7 @@ namespace TsMap.FileSystem.Hash
 
                     var metadataStartIndex = MemoryHelper.ReadInt32(rawEntries, offset + 0x08);
                     var entryMetadataCount = MemoryHelper.ReadUInt16(rawEntries, offset + 0x0c);
+                    var knownMetadata = false;
                     for (var j = 0; j < entryMetadataCount; j++)
                     {
                         var metadata0 = MemoryHelper.ReadUInt32(rawMetadataBytes, (metadataStartIndex + j) * 4);
@@ -235,6 +237,7 @@ namespace TsMap.FileSystem.Hash
                                     MemoryHelper.ReadUInt32(rawMetadataBytes, referencedMetadataOffset + 0x04),
                                     MemoryHelper.ReadUInt32(rawMetadataBytes, referencedMetadataOffset + 0x08),
                                     MemoryHelper.ReadUInt32(rawMetadataBytes, referencedMetadataOffset + 0x0c));
+                                knownMetadata = true;
                                 break;
                             case HashEntryTypes.Img:
                                 entry._imgMetadata = new ImgMetadata(
@@ -251,10 +254,17 @@ namespace TsMap.FileSystem.Hash
                                 // don't need these
                                 break;
                             default:
-                                Logger.Instance.Error(
-                                    $"Metadata type {metadata0 >> 0x18} 0x{metadata0 >> 0x18:X} for entry {entry.GetHash()} (0x{entry.GetHash():X}) not implemented.");
+                                // Unbekannter Typ: in geschützten Mods Lockvogel-Einträge, die das Spiel ignoriert
                                 break;
                         }
+                    }
+
+                    // Ohne Daten-Metadaten (Plain/Directory/Mip) lässt sich der Eintrag nicht lesen.
+                    // Nicht registrieren - sonst könnte ein Lockvogel eine echte Datei überdecken.
+                    if (!knownMetadata)
+                    {
+                        decoyEntries++;
+                        continue;
                     }
 
 
@@ -311,6 +321,8 @@ namespace TsMap.FileSystem.Hash
                     if (badEntries <= 5) Logger.Instance.Warning($"Skipping invalid entry #{i} in '{Path.GetFileName(_path)}': {e.Message}");
                   }
                 }
+                if (decoyEntries > 0)
+                    Logger.Instance.Warning($"'{Path.GetFileName(_path)}': {decoyEntries} entries without readable metadata skipped (protected archive?)");
                 if (badEntries > 0)
                     Logger.Instance.Warning($"'{Path.GetFileName(_path)}': {badEntries} invalid entries skipped");
                 if (entryCount == 0 && _hashHeader.EntryCount > 0) return false;
