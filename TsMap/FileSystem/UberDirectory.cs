@@ -89,6 +89,21 @@ namespace TsMap.FileSystem
             }
         }
 
+        /// <summary>Fasst mehrere Ordner-Objekte desselben Pfads zusammen (z.B. aus Archiven mit Salt).</summary>
+        internal static UberDirectory Merge(IEnumerable<UberDirectory> directories)
+        {
+            var merged = new UberDirectory();
+            var files = new HashSet<string>();
+            var dirs = new HashSet<string>();
+            foreach (var dir in directories)
+            {
+                merged._entries.AddRange(dir._entries);
+                foreach (var f in dir._subFilesNames) if (files.Add(f)) merged._subFilesNames.Add(f);
+                foreach (var d in dir._subDirectoryNames) if (dirs.Add(d)) merged._subDirectoryNames.Add(d);
+            }
+            return merged;
+        }
+
         public List<string> GetSubDirectoryNames()
         {
             return _subDirectoryNames;

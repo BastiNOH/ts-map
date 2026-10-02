@@ -133,7 +133,37 @@ namespace TsMap.FileSystem
         /// </returns>
         public UberDirectory GetDirectory(string path)
         {
-            return GetDirectory(CityHash.CityHash64(PathHelper.EnsureLocalPath(path)));
+            UberDirectory first = null;
+            List<UberDirectory> all = null;
+            foreach (var hash in CandidateHashes(path))
+            {
+                UberDirectory dir;
+                if (!Directories.TryGetValue(hash, out dir)) continue;
+                if (first == null) first = dir;
+                else (all ?? (all = new List<UberDirectory> { first })).Add(dir);
+            }
+            // Gleicher Ordner in Archiven mit und ohne Salt: Inhalte zusammenführen
+            return all == null ? first : UberDirectory.Merge(all);
+        }
+
+        private readonly List<ushort> _salts = new List<ushort>();
+
+        /// <summary>
+        /// HashFS-Archive können einen Salt haben: er wird als Dezimalzahl vor den Pfad gesetzt, bevor
+        /// gehasht wird (u.a. von geschützten Mods genutzt). Das Spiel berücksichtigt ihn - wir auch.
+        /// </summary>
+        internal void RegisterSalt(ushort salt)
+        {
+            if (salt != 0 && !_salts.Contains(salt)) _salts.Add(salt);
+        }
+
+        /// <summary>Hashes eines Pfads: zuerst mit Salts (später geladene Archive zuerst), dann ohne.</summary>
+        private IEnumerable<ulong> CandidateHashes(string path)
+        {
+            var local = PathHelper.EnsureLocalPath(path);
+            for (var i = _salts.Count - 1; i >= 0; i--)
+                yield return CityHash.CityHash64(_salts[i].ToString(System.Globalization.CultureInfo.InvariantCulture) + local);
+            yield return CityHash.CityHash64(local);
         }
 
         /// <summary>
@@ -163,7 +193,12 @@ namespace TsMap.FileSystem
         /// </returns>
         public UberFile GetFile(string path)
         {
-            return GetFile(CityHash.CityHash64(PathHelper.EnsureLocalPath(path)));
+            foreach (var hash in CandidateHashes(path))
+            {
+                UberFile file;
+                if (Files.TryGetValue(hash, out file)) return file;
+            }
+            return null;
         }
 
         /// <summary>
