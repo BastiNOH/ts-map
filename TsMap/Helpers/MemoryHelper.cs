@@ -72,6 +72,7 @@ namespace TsMap.Helpers
 
         internal static unsafe ushort ReadUInt16(byte[] s, int pos)
         {
+            if (pos < 0 || pos + 2 > s.Length) throw new IndexOutOfRangeException($"Lesen außerhalb des Puffers ({pos} + 2 > {s.Length})");
             fixed (byte* p = &s[0])
             {
                 return *(ushort*)(p + pos);
@@ -79,6 +80,7 @@ namespace TsMap.Helpers
         }
         internal static unsafe short ReadInt16(byte[] s, int pos)
         {
+            if (pos < 0 || pos + 2 > s.Length) throw new IndexOutOfRangeException($"Lesen außerhalb des Puffers ({pos} + 2 > {s.Length})");
             fixed (byte* p = &s[0])
             {
                 return *(short*)(p + pos);
@@ -87,6 +89,7 @@ namespace TsMap.Helpers
 
         internal static unsafe uint ReadUInt32(byte[] s, int pos)
         {
+            if (pos < 0 || pos + 4 > s.Length) throw new IndexOutOfRangeException($"Lesen außerhalb des Puffers ({pos} + 4 > {s.Length})");
             fixed (byte* p = &s[0])
             {
                 return *(uint*)(p + pos);
@@ -94,6 +97,7 @@ namespace TsMap.Helpers
         }
         internal static unsafe int ReadInt32(byte[] s, int pos)
         {
+            if (pos < 0 || pos + 4 > s.Length) throw new IndexOutOfRangeException($"Lesen außerhalb des Puffers ({pos} + 4 > {s.Length})");
             fixed (byte* p = &s[0])
             {
                 return *(int*)(p + pos);
@@ -102,6 +106,7 @@ namespace TsMap.Helpers
 
         internal static unsafe float ReadSingle(byte[] s, int pos)
         {
+            if (pos < 0 || pos + 4 > s.Length) throw new IndexOutOfRangeException($"Lesen außerhalb des Puffers ({pos} + 4 > {s.Length})");
             fixed (byte* p = &s[0])
             {
                 return *(float*)(p + pos);
@@ -110,6 +115,7 @@ namespace TsMap.Helpers
 
         internal static unsafe ulong ReadUInt64(byte[] s, int pos)
         {
+            if (pos < 0 || pos + 8 > s.Length) throw new IndexOutOfRangeException($"Lesen außerhalb des Puffers ({pos} + 8 > {s.Length})");
             fixed (byte* p = &s[0])
             {
                 return *(ulong*)(p + pos);
@@ -117,6 +123,7 @@ namespace TsMap.Helpers
         }
         internal static unsafe long ReadInt64(byte[] s, int pos)
         {
+            if (pos < 0 || pos + 8 > s.Length) throw new IndexOutOfRangeException($"Lesen außerhalb des Puffers ({pos} + 8 > {s.Length})");
             fixed (byte* p = &s[0])
             {
                 return *(long*)(p + pos);
@@ -134,6 +141,7 @@ namespace TsMap.Helpers
 
         internal static unsafe ushort ReadUInt16(byte[] s, uint pos)
         {
+            if ((long)pos + 2 > s.Length) throw new IndexOutOfRangeException($"Lesen außerhalb des Puffers ({pos} + 2 > {s.Length})");
             fixed (byte* p = &s[0])
             {
                 return *(ushort*)(p + pos);
@@ -141,6 +149,7 @@ namespace TsMap.Helpers
         }
         internal static unsafe short ReadInt16(byte[] s, uint pos)
         {
+            if ((long)pos + 2 > s.Length) throw new IndexOutOfRangeException($"Lesen außerhalb des Puffers ({pos} + 2 > {s.Length})");
             fixed (byte* p = &s[0])
             {
                 return *(short*)(p + pos);
@@ -149,6 +158,7 @@ namespace TsMap.Helpers
 
         internal static unsafe uint ReadUInt32(byte[] s, uint pos)
         {
+            if ((long)pos + 4 > s.Length) throw new IndexOutOfRangeException($"Lesen außerhalb des Puffers ({pos} + 4 > {s.Length})");
             fixed (byte* p = &s[0])
             {
                 return *(uint*)(p + pos);
@@ -156,6 +166,7 @@ namespace TsMap.Helpers
         }
         internal static unsafe int ReadInt32(byte[] s, uint pos)
         {
+            if ((long)pos + 4 > s.Length) throw new IndexOutOfRangeException($"Lesen außerhalb des Puffers ({pos} + 4 > {s.Length})");
             fixed (byte* p = &s[0])
             {
                 return *(int*)(p + pos);
@@ -164,6 +175,7 @@ namespace TsMap.Helpers
 
         internal static unsafe float ReadSingle(byte[] s, uint pos)
         {
+            if ((long)pos + 4 > s.Length) throw new IndexOutOfRangeException($"Lesen außerhalb des Puffers ({pos} + 4 > {s.Length})");
             fixed (byte* p = &s[0])
             {
                 return *(float*)(p + pos);
@@ -172,6 +184,7 @@ namespace TsMap.Helpers
 
         internal static unsafe ulong ReadUInt64(byte[] s, uint pos)
         {
+            if ((long)pos + 8 > s.Length) throw new IndexOutOfRangeException($"Lesen außerhalb des Puffers ({pos} + 8 > {s.Length})");
             fixed (byte* p = &s[0])
             {
                 return *(ulong*)(p + pos);
@@ -179,6 +192,7 @@ namespace TsMap.Helpers
         }
         internal static unsafe long ReadInt64(byte[] s, uint pos)
         {
+            if ((long)pos + 8 > s.Length) throw new IndexOutOfRangeException($"Lesen außerhalb des Puffers ({pos} + 8 > {s.Length})");
             fixed (byte* p = &s[0])
             {
                 return *(long*)(p + pos);

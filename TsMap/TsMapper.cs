@@ -471,7 +471,18 @@ namespace TsMap
             if (_sectorFiles == null) return;
             var preMapParseTime = DateTime.Now.Ticks;
             Sectors = _sectorFiles.Select(file => new TsSector(this, file)).ToList();
-            Sectors.ForEach(sec => sec.Parse());
+            foreach (var sec in Sectors)
+            {
+                try
+                {
+                    sec.Parse();
+                }
+                catch (Exception e)
+                {
+                    // ein fehlerhafter Sektor (z.B. aus geschützten Mods) soll nicht die ganze Karte verhindern
+                    Logger.Instance.Error($"Could not parse sector '{sec.FilePath}': {e.GetType().Name}: {e.Message}");
+                }
+            }
             Sectors.ForEach(sec => sec.ClearFileData());
             Logger.Instance.Info($"It took {(DateTime.Now.Ticks - preMapParseTime) / TimeSpan.TicksPerMillisecond} ms to parse all (*.base) files");
 
