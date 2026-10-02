@@ -8,6 +8,20 @@ namespace TsMap.Helpers
 {
     internal class MemoryHelper
     {
+        /// <summary>
+        /// Liest genau <paramref name="count"/> Bytes. Stream.Read darf weniger zurückgeben als angefordert.
+        /// </summary>
+        internal static void ReadExactly(Stream stream, byte[] buffer, int offset, int count)
+        {
+            while (count > 0)
+            {
+                var read = stream.Read(buffer, offset, count);
+                if (read <= 0) throw new EndOfStreamException($"Unerwartetes Ende: {count} Bytes fehlen");
+                offset += read;
+                count -= read;
+            }
+        }
+
         internal static ushort ReadUInt16(BinaryReader br, long offset, SeekOrigin so = SeekOrigin.Begin)
         {
             br.BaseStream.Seek(offset, so);

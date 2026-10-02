@@ -35,7 +35,7 @@ namespace TsMap.FileSystem
             using (var f = File.OpenRead(path))
             {
                 f.Seek(0, SeekOrigin.Begin);
-                f.Read(buff, 0, 4); // read magic bytes (first 4 bytes of file)
+                MemoryHelper.ReadExactly(f, buff, 0, 4); // read magic bytes (first 4 bytes of file)
             }
             if (BitConverter.ToUInt32(buff, 0) == Consts.ScsMagic)
             {
