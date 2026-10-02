@@ -71,6 +71,9 @@
     <Compile Include="Common\DlcGuard.cs" />
     <Compile Include="FileSystem\CityHash.cs" />
     <Compile Include="FileSystem\Entry.cs" />
+    <Compile Include="FileSystem\Folder\FolderArchiveFile.cs" />
+    <Compile Include="Mods\ModProfile.cs" />
+    <Compile Include="Mods\SiiFile.cs" />
     <Compile Include="FileSystem\Hash\HashEntryV1.cs" />
     <Compile Include="FileSystem\Hash\HashArchiveHeader.cs" />
     <Compile Include="FileSystem\ArchiveFile.cs" />

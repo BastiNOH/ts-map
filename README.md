@@ -12,6 +12,27 @@ Can now export maps as a tiled web map.
 [Example with a max zoom level of 4](https://dariowouters.github.io/ts-tile-map-example/)
 
 ##### [Source](https://github.com/dariowouters/ts-tile-map-example)
+## Kommandozeile mit Mods aus dem Spielerprofil (TsMap.Cli)
+
+`TsMap.Cli` liest die **aktiven Mods inklusive Reihenfolge** direkt aus dem Spielerprofil
+(`profile.sii`, auch verschlüsselt/binär) und rendert die Kachelkarte ohne GUI:
+
+```
+TsMap.Cli --game ats  --out D:\www\html\maps\ats
+TsMap.Cli --game ets2 --out D:\www\html\maps\ets2 --profile "Basti" --game-version 1.58
+TsMap.Cli --game ets2 --list          # nur erkannte Mods + Reihenfolge anzeigen
+```
+
+- Profil: zuletzt benutztes Profil (lokal oder Steam-Cloud) oder `--profile <Name|Ordner>`
+- Spielordner und Steam-Workshop-Ordner werden über Steam (alle Bibliotheken) gefunden, sonst `--game-dir` / `--workshop-dir`
+- Workshop-Mods: das passende Paket aus `versions.sii` wird gewählt (`--game-version`, sonst das neueste)
+- Lokale Mods aus `Dokumente\<Spiel>\mod` als `.scs`, `.zip` oder entpackter Ordner
+- Reihenfolge wie im Spiel: oben in der Liste = höchste Priorität
+- Ausgabe: `Tiles/`, `TileMapInfo.json`, `Cities.json`, `Countries.json`, `Overlays.json`, `Overlays/`
+- Weitere Optionen: `--zoom 0-8`, `--no-tiles`, `--no-mods`, `--exclude <Text>` (siehe `--help`)
+
+Build: `dotnet publish TsMap.Cli -c Release -p:Platform=x64 -r win-x64` (.NET 10, Windows)
+
 ## Map mod support
 It can now load map mods.
 

@@ -50,6 +50,11 @@ namespace TsMap
         public string ModPath { get; set; }
         public bool Load { get; set; }
 
+        /// <summary>
+        /// Display name from the profile (e.g. "ProMods Europe"), null for manually selected mods
+        /// </summary>
+        public string DisplayName { get; set; }
+
         public Mod(string path)
         {
             ModPath = path;
@@ -58,7 +63,7 @@ namespace TsMap
 
         public override string ToString()
         {
-            return Path.GetFileName(ModPath);
+            return string.IsNullOrEmpty(DisplayName) ? Path.GetFileName(ModPath) : DisplayName;
         }
     }
 
