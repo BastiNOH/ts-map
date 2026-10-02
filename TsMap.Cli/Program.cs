@@ -68,10 +68,12 @@ namespace TsMap.Cli
                 Console.Error.WriteLine($"Spielordner nicht gefunden, bitte mit --game-dir angeben.");
                 return 1;
             }
-            var documentsDir = o.DocumentsDir ?? GameInfo.DocumentsDir(game);
+            var searchedDirs = new List<string>();
+            var documentsDir = o.DocumentsDir ?? GameInfo.ResolveDocumentsDir(game, out searchedDirs);
 
             Console.WriteLine($"Spiel:       {GameInfo.Name(game)}");
             Console.WriteLine($"Spielordner: {gameDir}");
+            Console.WriteLine($"Spieldaten:  {documentsDir}");
 
             var mods = new List<Mod>();
             if (!o.NoMods)
@@ -89,8 +91,18 @@ namespace TsMap.Cli
 
                 if (profile == null)
                 {
-                    Console.Error.WriteLine($"Kein Profil gefunden in {documentsDir}. Verfügbar:");
-                    foreach (var p in ProfileReader.FindProfiles(game, documentsDir)) Console.Error.WriteLine($"  - {p}");
+                    var verfuegbar = ProfileReader.FindProfiles(game, documentsDir);
+                    if (verfuegbar.Count == 0)
+                    {
+                        Console.Error.WriteLine("Kein Profil gefunden. Gesucht in:");
+                        foreach (var d in searchedDirs.DefaultIfEmpty(documentsDir)) Console.Error.WriteLine($"  - {d}");
+                        Console.Error.WriteLine("Liegen die Spieldaten woanders, mit --documents <Ordner> angeben (z.B. \"E:\\Game_Data\\Euro Truck Simulator 2\").");
+                    }
+                    else
+                    {
+                        Console.Error.WriteLine($"Profil '{o.Profile}' nicht gefunden. Verfügbar:");
+                        foreach (var p in verfuegbar) Console.Error.WriteLine($"  - {p}");
+                    }
                     return 1;
                 }
 
