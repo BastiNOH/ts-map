@@ -18,6 +18,9 @@ namespace TsMap
 
         public byte[] Stream { get; private set; }
 
+        /// <summary>Bei unbekanntem Objekttyp abbrechen statt weiterzulesen (für versuchsweise gelesene Dateien)</summary>
+        internal bool StrictTypes { get; set; }
+
         private readonly UberFile _file;
 
         public TsSector(TsMapper mapper, string filePath)
@@ -204,6 +207,7 @@ namespace TsMap
                     }
                     default:
                     {
+                        if (StrictTypes) throw new InvalidDataException($"unknown item type {(int) type} @ {lastOffset}");
                         Logger.Instance.Warning($"Unknown Type: {type} in {Path.GetFileName(FilePath)} @ {lastOffset}");
                         break;
                     }
