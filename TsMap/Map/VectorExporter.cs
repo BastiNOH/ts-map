@@ -48,11 +48,25 @@ namespace TsMap.Map
 
         public int FeatureCount => _features.Count;
 
+        /// <summary>Wegen inaktivem DLC-Guard ausgelassene Flächen/Prefabs/Straßen je Guard-Index</summary>
+        public Dictionary<byte, int> HiddenByGuard { get; } = new Dictionary<byte, int>();
+
+        /// <summary>Guard-Indizes, die ts-map nicht kennt (z.B. neue DLCs oder Mods) - werden gezeichnet</summary>
+        public Dictionary<byte, int> UnknownGuards { get; } = new Dictionary<byte, int>();
+
+        private HashSet<byte> _activeGuards;
+        private HashSet<byte> _knownGuards;
+
         /// <summary>Sammelt alle Formen (berücksichtigt aktive DLC-Guards, wie der Renderer).</summary>
         public void Collect(bool includeSecret = true)
         {
             _features.Clear();
-            var activeDlcGuards = new HashSet<byte>(_mapper.GetDlcGuardsForCurrentGame().Where(x => x.Enabled).Select(x => x.Index));
+            HiddenByGuard.Clear();
+            UnknownGuards.Clear();
+            var guards = _mapper.GetDlcGuardsForCurrentGame();
+            _activeGuards = new HashSet<byte>(guards.Where(x => x.Enabled).Select(x => x.Index));
+            _knownGuards = new HashSet<byte>(guards.Select(x => x.Index));
+            var activeDlcGuards = _activeGuards;
 
             CollectMapAreas(activeDlcGuards, includeSecret);
             CollectPrefabs(activeDlcGuards, includeSecret);
@@ -271,11 +285,27 @@ namespace TsMap.Map
             });
         }
 
+        /// <summary>
+        /// Bekannte Guards nur, wenn aktiv; unbekannte Guards (von ts-map nicht erfasst) immer zeichnen,
+        /// sonst verschwinden z.B. Straßen neuer DLCs oder von Karten-Mods komplett.
+        /// </summary>
+        private bool IsGuardActive(byte guard)
+        {
+            if (!_knownGuards.Contains(guard))
+            {
+                UnknownGuards[guard] = UnknownGuards.TryGetValue(guard, out var u) ? u + 1 : 1;
+                return true;
+            }
+            if (_activeGuards.Contains(guard)) return true;
+            HiddenByGuard[guard] = HiddenByGuard.TryGetValue(guard, out var h) ? h + 1 : 1;
+            return false;
+        }
+
         private void CollectMapAreas(HashSet<byte> activeDlcGuards, bool includeSecret)
         {
             foreach (var mapArea in _mapper.MapAreas)
             {
-                if (!activeDlcGuards.Contains(mapArea.DlcGuard) || mapArea.IsSecret && !includeSecret) continue;
+                if (!IsGuardActive(mapArea.DlcGuard) || mapArea.IsSecret && !includeSecret) continue;
 
                 var points = new List<PointF>();
                 foreach (var uid in mapArea.NodeUids)
@@ -298,7 +328,7 @@ namespace TsMap.Map
         {
             foreach (var prefabItem in _mapper.Prefabs)
             {
-                if (!activeDlcGuards.Contains(prefabItem.DlcGuard) || prefabItem.IsSecret && !includeSecret) continue;
+                if (!IsGuardActive(prefabItem.DlcGuard) || prefabItem.IsSecret && !includeSecret) continue;
                 if (prefabItem.Prefab?.PrefabNodes == null || prefabItem.Prefab.MapPoints == null) continue;
                 if (prefabItem.Nodes == null || prefabItem.Nodes.Count == 0 || prefabItem.Origin >= prefabItem.Prefab.PrefabNodes.Count) continue;
 
@@ -399,7 +429,7 @@ namespace TsMap.Map
         {
             foreach (var road in _mapper.Roads)
             {
-                if (!activeDlcGuards.Contains(road.DlcGuard) || road.IsSecret && !includeSecret) continue;
+                if (!IsGuardActive(road.DlcGuard) || road.IsSecret && !includeSecret) continue;
 
                 IList<PointF> points;
                 if (road.HasPoints())
