@@ -237,6 +237,7 @@ namespace TsMap.FileSystem.Hash
                                     MemoryHelper.ReadUInt32(rawMetadataBytes, referencedMetadataOffset + 0x04),
                                     MemoryHelper.ReadUInt32(rawMetadataBytes, referencedMetadataOffset + 0x08),
                                     MemoryHelper.ReadUInt32(rawMetadataBytes, referencedMetadataOffset + 0x0c));
+                                if (entryType == HashEntryTypes.Directory) entry.DirectoryMetadata = true;
                                 knownMetadata = true;
                                 break;
                             case HashEntryTypes.Img:

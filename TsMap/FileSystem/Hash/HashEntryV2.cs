@@ -17,6 +17,9 @@ namespace TsMap.FileSystem.Hash
 
         internal uint Flags { get; set; }
 
+        /// <summary>Metadaten-Typ "Directory" (geschützte Archive löschen teils das Flag)</summary>
+        internal bool DirectoryMetadata { get; set; }
+
         public override byte[] Read()
         {
             var buff = MemoryHelper.ReadBytes(GetArchiveFile().Br, (long) GetOffset(), (int) GetCompressedSize());
@@ -88,7 +91,7 @@ namespace TsMap.FileSystem.Hash
 
         public override bool IsDirectory()
         {
-            return MemoryHelper.IsBitSet(Flags >> 16, 0);
+            return MemoryHelper.IsBitSet(Flags >> 16, 0) || DirectoryMetadata;
         }
 
         public override bool IsCompressed()
