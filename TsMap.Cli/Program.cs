@@ -32,6 +32,9 @@ namespace TsMap.Cli
             public int MinZoom = 0;
             public int MaxZoom = 9;
             public bool Tiles = true;
+            public bool Png;
+            public bool Vector = true;
+            public int VectorZoom = 8;
             public bool ListOnly;
             public bool NoMods;
             public bool DlcAuto = true;
@@ -160,7 +163,8 @@ namespace TsMap.Cli
 
             var renderer = new TsMapRenderer(mapper);
             var palette = new SimpleMapPalette();
-            GenerateTiles(mapper, renderer, palette, outDir, o.MinZoom, o.MaxZoom, o.Tiles);
+            GenerateTiles(mapper, renderer, palette, outDir, o.MinZoom, o.MaxZoom, o.Tiles && o.Png);
+            if (o.Tiles && o.Vector) GenerateVectorTiles(mapper, outDir, o.VectorZoom);
 
             Console.WriteLine($"Fertig in {sw.Elapsed.TotalMinutes:0.0} min -> {outDir}");
             return 0;
@@ -228,6 +232,19 @@ namespace TsMap.Cli
             Console.WriteLine();
         }
 
+        private static void GenerateVectorTiles(TsMapper mapper, string outDir, int maxZoom)
+        {
+            ZoomOutAndCenterMap(mapper, TileSize, TileSize, out var pos0, out var zoom0);
+            var exporter = new TsMap.Map.VectorExporter(mapper);
+            exporter.Collect();
+            Console.WriteLine($"Vektorkarte: {exporter.FeatureCount} Formen, Zoomstufen 0-{maxZoom}");
+            var count = exporter.Export(outDir, pos0.X, pos0.Y, zoom0, maxZoom, msg => Console.WriteLine("  " + msg));
+
+            // Leaflet liest daraus, bis zu welcher Stufe Vektor-Kacheln vorliegen (darüber wird vergrößert)
+            File.WriteAllText(Path.Combine(outDir, "VectorInfo.json"),
+                $"{{\"format\":1,\"tileSize\":{TileSize},\"maxZoom\":{maxZoom},\"tiles\":{count},\"created\":\"{DateTime.UtcNow:yyyy-MM-ddTHH:mm:ssZ}\"}}");
+        }
+
         private static void SaveTile(TsMapRenderer renderer, MapPalette palette, int z, int x, int y, PointF pos, float zoom, string outDir)
         {
             using (var bitmap = new Bitmap(TileSize, TileSize))
@@ -292,6 +309,14 @@ namespace TsMap.Cli
                         o.MaxZoom = int.Parse(range.Length > 1 ? range[1] : range[0]);
                         break;
                     case "--no-tiles": o.Tiles = false; break;
+                    case "--format":
+                        var fmt = Next().ToLowerInvariant();
+                        if (fmt == "vector" || fmt == "vektor") { o.Vector = true; o.Png = false; }
+                        else if (fmt == "png") { o.Vector = false; o.Png = true; }
+                        else if (fmt == "both" || fmt == "beide") { o.Vector = true; o.Png = true; }
+                        else throw new ArgumentException("--format vector|png|beide");
+                        break;
+                    case "--vector-zoom": o.VectorZoom = int.Parse(Next()); break;
                     case "--list": o.ListOnly = true; break;
                     case "--no-mods": o.NoMods = true; break;
                     case "--exclude": o.Exclude.Add(Next()); break;
@@ -310,6 +335,7 @@ namespace TsMap.Cli
 
             if (o.Game == null) throw new ArgumentException("--game fehlt (ets2 oder ats)");
             if (o.MinZoom < 0 || o.MaxZoom > 18 || o.MinZoom > o.MaxZoom) throw new ArgumentException("--zoom muss im Bereich 0-18 liegen, z.B. 0-8");
+            if (o.VectorZoom < 0 || o.VectorZoom > 12) throw new ArgumentException("--vector-zoom muss im Bereich 0-12 liegen");
             return o;
         }
 
@@ -320,14 +346,16 @@ namespace TsMap.Cli
   TsMap.Cli --game <ets2|ats> --out <ordner> [optionen]
 
   --game <ets2|ats>      Spiel (Pflicht)
-  --out <ordner>         Zielordner (Tiles/, TileMapInfo.json, Cities.json, Overlays.json, ...)
+  --out <ordner>         Zielordner (Vector/ bzw. Tiles/, TileMapInfo.json, Cities.json, Overlays.json, ...)
   --profile <name>       Profilname oder Profilordner (Standard: zuletzt benutztes Profil)
   --game-dir <pfad>      Spielordner (Standard: automatisch über Steam)
   --documents <pfad>     Dokumente-Ordner des Spiels (Standard: Eigene Dokumente\<Spiel>)
   --game-version <ver>   z.B. 1.61 – wählt bei Workshop-Mods das passende Paket (Standard: neuestes)
   --workshop-dir <pfad>  zusätzlicher Workshop-Ordner (steamapps\workshop\content\<appid>)
   --exclude <text>       Mod überspringen, deren Name/Paket den Text enthält (mehrfach möglich)
-  --zoom <von-bis>       Zoomstufen der Kacheln (Standard: 0-9)
+  --format <art>         vector: Vektor-Kacheln für Leaflet (Standard), png: Bild-Kacheln, beide
+  --zoom <von-bis>       Zoomstufen der PNG-Kacheln (Standard: 0-9)
+  --vector-zoom <n>      höchste Zoomstufe der Vektor-Kacheln, darüber wird scharf vergrößert (Standard: 8)
   --dlc <auto|alle>      auto: nur installierte DLCs rendern (Standard), alle: ts-map-Standard
   --dlc-an <guard>       DLC-Guard erzwingen, z.B. dlc_wa_and_or (mehrfach möglich)
   --dlc-aus <guard>      DLC-Guard abschalten (mehrfach möglich)

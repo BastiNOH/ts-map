@@ -28,9 +28,10 @@ TsMap.Cli --game ets2 --list          # nur erkannte Mods + Reihenfolge anzeigen
 - Workshop-Mods: das passende Paket aus `versions.sii` wird gewählt (`--game-version`, sonst das neueste)
 - Lokale Mods aus `Dokumente\<Spiel>\mod` als `.scs`, `.zip` oder entpackter Ordner
 - Reihenfolge wie im Spiel: oben in der Liste = höchste Priorität
-- Ausgabe: `Tiles/`, `TileMapInfo.json`, `Cities.json`, `Countries.json`, `Overlays.json`, `Overlays/`
+- Ausgabe: `Vector/` + `VectorInfo.json` (bzw. `Tiles/` mit `--format png`), `TileMapInfo.json`, `Cities.json`, `Countries.json`, `Overlays.json`, `Overlays/`
 - DLC-Prüfung: nur Karten-DLCs, die als `dlc_*.scs` im Spielordner liegen, werden gezeichnet (`--dlc alle` = Standardverhalten, `--dlc-an`/`--dlc-aus <guard>` zum Übersteuern)
-- Weitere Optionen: `--zoom 0-9` (Standard), `--no-tiles`, `--no-mods`, `--exclude <Text>` (siehe `--help`)
+- Vektorkarte (Standard, `--format vector`): Straßen, Prefabs, Gebiete und Fähren als JSON-Kacheln `Vector/{z}/{x}/{y}.json` (Stufen 0 bis `--vector-zoom`, Standard 8) für eine selbst zeichnende Leaflet-Ebene; `--format png` erzeugt die bisherigen Bild-Kacheln, `--format beide` beides
+- Weitere Optionen: `--zoom 0-9` (PNG, Standard), `--no-tiles`, `--no-mods`, `--exclude <Text>` (siehe `--help`)
 
 Build: `dotnet publish TsMap.Cli -c Release -p:Platform=x64 -r win-x64` (.NET 10, Windows)
 
