@@ -402,7 +402,34 @@ namespace TsMap
                 }
 
                 _sectorFiles.AddRange(mapFileDir.GetFilesByExtension($"map/{mapName}", ".base"));
+                ProbeHiddenSectors(mapName);
             }
+        }
+
+        /// <summary>Sektoren, die über ihren Namen gefunden wurden, aber in keiner Ordnerliste stehen.</summary>
+        public int HiddenSectorCount { get; private set; }
+
+        /// <summary>
+        /// Geschützte Mods verstecken teils die Ordnerlisten; das Spiel findet Sektoren trotzdem über
+        /// ihren Namen (sec+XXXX+YYYY.base). Deshalb alle Namen im Sektorraster per Hash nachschlagen.
+        /// </summary>
+        private void ProbeHiddenSectors(string mapName)
+        {
+            const int range = 512;
+            var known = new HashSet<string>(_sectorFiles, StringComparer.OrdinalIgnoreCase);
+            var found = 0;
+            for (var x = -range; x < range; x++)
+            {
+                for (var z = -range; z < range; z++)
+                {
+                    var path = $"map/{mapName}/sec{x.ToString("+0000;-0000", CultureInfo.InvariantCulture)}{z.ToString("+0000;-0000", CultureInfo.InvariantCulture)}.base";
+                    if (known.Contains(path) || UberFileSystem.Instance.GetFile(path) == null) continue;
+                    _sectorFiles.Add(path);
+                    found++;
+                }
+            }
+            HiddenSectorCount += found;
+            if (found > 0) Logger.Instance.Info($"Found {found} sectors of '{mapName}' without directory listing (protected mod?)");
         }
 
         /// <summary>
