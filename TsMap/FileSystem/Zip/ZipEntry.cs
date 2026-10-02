@@ -22,7 +22,9 @@ namespace TsMap.FileSystem.Zip
             using (var ms = new MemoryStream(buff))
             using (var ds = new DeflateStream(ms, CompressionMode.Decompress))
             {
-                ds.Read(inflatedBytes, 0, (int)GetSize());
+                // Stream.Read darf weniger liefern als angefordert (unter .NET Core/.NET 5+ bei
+                // DeflateStream die Regel) -> bis zum Ende lesen, sonst bleibt der Rest leer.
+                MemoryHelper.ReadExactly(ds, inflatedBytes, 0, inflatedBytes.Length);
 
                 return inflatedBytes;
             }
