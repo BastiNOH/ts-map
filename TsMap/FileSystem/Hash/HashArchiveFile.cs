@@ -164,20 +164,24 @@ namespace TsMap.FileSystem.Hash
                 var entriesBlockRaw =
                     Br.ReadBytes((int)entryTableBlockSize);
 
-                var rawEntries =
-                    MemoryHelper.InflateZlib(entriesBlockRaw, entriesBlockRaw.Length,
-                        (int)(_hashHeader.EntryCount * EntryV2BlockSize));
+                var rawEntries = MemoryHelper.InflateZlibTolerant(entriesBlockRaw,
+                    (long)_hashHeader.EntryCount * EntryV2BlockSize, $"{Path.GetFileName(_path)} entry table");
 
                 Br.BaseStream.Seek(metadataTableBlockOffset, SeekOrigin.Begin);
                 var metadataBlockRaw =
                     Br.ReadBytes((int)metadataTableBlockSize);
 
-                var rawMetadataBytes =
-                    MemoryHelper.InflateZlib(metadataBlockRaw, metadataBlockRaw.Length,
-                        (int)(metadataCount * 0x04));
+                var rawMetadataBytes = MemoryHelper.InflateZlibTolerant(metadataBlockRaw,
+                    (long)metadataCount * 0x04, $"{Path.GetFileName(_path)} metadata table");
 
-                for (var i = 0; i < _hashHeader.EntryCount; i++)
+                // Geschützte Archive enthalten teils unsinnige Einträge: nur lesen, was da ist, und
+                // fehlerhafte Einträge überspringen statt das ganze Archiv zu verwerfen
+                var entryCount = Math.Min(_hashHeader.EntryCount, (uint)(rawEntries.Length / EntryV2BlockSize));
+                var badEntries = 0;
+                for (var i = 0; i < entryCount; i++)
                 {
+                  try
+                  {
                     var offset = i * EntryV2BlockSize;
 
                     var entry = new HashEntryV2(this)
@@ -275,7 +279,16 @@ namespace TsMap.FileSystem.Hash
                             UberFileSystem.Instance.Files.Add(entry.GetHash(), new UberFile(entry));
                         }
                     }
+                  }
+                  catch (Exception e) when (e is IndexOutOfRangeException || e is ArgumentException || e is IOException || e is InvalidDataException)
+                  {
+                    badEntries++;
+                    if (badEntries <= 5) Logger.Instance.Warning($"Skipping invalid entry #{i} in '{Path.GetFileName(_path)}': {e.Message}");
+                  }
                 }
+                if (badEntries > 0)
+                    Logger.Instance.Warning($"'{Path.GetFileName(_path)}': {badEntries} invalid entries skipped");
+                if (entryCount == 0 && _hashHeader.EntryCount > 0) return false;
             }
 
             Logger.Instance.Info($"Mounted '{Path.GetFileName(_path)}' with {_hashHeader.EntryCount} entries");
