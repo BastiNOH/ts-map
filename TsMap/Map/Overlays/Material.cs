@@ -32,8 +32,7 @@ namespace TsMap.Map.Overlays
                 return false;
             }
 
-            var data = matFile.Entry.Read();
-            var lines = Encoding.UTF8.GetString(data).Split('\n');
+            var lines = Mods.DefText.Read(matFile, _matFilePath).Split('\n');
 
             foreach (var line in lines)
             {

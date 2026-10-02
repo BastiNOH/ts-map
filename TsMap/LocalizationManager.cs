@@ -39,9 +39,8 @@ namespace TsMap.Helpers
         private void ParseLocaleFile(string localeFilePath, string locale)
         {
             var localeFile = UberFileSystem.Instance.GetFile(localeFilePath);
-            var entryContents = localeFile.Entry.Read();
-            var magic = MemoryHelper.ReadUInt32(entryContents, 0);
-            var fileContents = (magic == 21720627) ? MemoryHelper.Decrypt3Nk(entryContents) : Encoding.UTF8.GetString(entryContents);
+            // 3nK, ScsC (verschlüsselte Mod-Dateien) oder Text
+            var fileContents = Mods.DefText.Read(localeFile, localeFilePath);
             if (fileContents == null)
             {
                 Logger.Logger.Instance.Error($"Could not read locale file '{localeFilePath}'");

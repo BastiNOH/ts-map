@@ -80,9 +80,9 @@ namespace TsMap
             foreach (var cityFileName in defDirectory.GetFiles("city"))
             {
                 var cityFile = UberFileSystem.Instance.GetFile($"def/{cityFileName}");
+                if (cityFile == null) continue;
 
-                var data = cityFile.Entry.Read();
-                var lines = Encoding.UTF8.GetString(data).Split('\n');
+                var lines = Mods.DefText.Read(cityFile, $"def/{cityFileName}").Split('\n');
                 foreach (var line in lines)
                 {
                     if (line.TrimStart().StartsWith("#")) continue;
@@ -111,9 +111,9 @@ namespace TsMap
             foreach (var countryFilePath in defDirectory.GetFiles("country"))
             {
                 var countryFile = UberFileSystem.Instance.GetFile($"def/{countryFilePath}");
+                if (countryFile == null) continue;
 
-                var data = countryFile.Entry.Read();
-                var lines = Encoding.UTF8.GetString(data).Split('\n');
+                var lines = Mods.DefText.Read(countryFile, $"def/{countryFilePath}").Split('\n');
                 foreach (var line in lines)
                 {
                     if (line.TrimStart().StartsWith("#")) continue;
@@ -139,19 +139,32 @@ namespace TsMap
                 return;
             }
 
-            foreach (var prefabFileName in worldDirectory.GetFiles("prefab"))
+            // prefab*.sii/.sui plus alles, was diese per @include einbinden
+            var queue = new Queue<string>(worldDirectory.GetFiles("prefab").Where(f => f.StartsWith("prefab")).Select(f => "def/world/" + f));
+            var seen = new HashSet<string>(queue, StringComparer.OrdinalIgnoreCase);
+            while (queue.Count > 0)
             {
-                if (!prefabFileName.StartsWith("prefab")) continue;
-                var prefabFile = UberFileSystem.Instance.GetFile($"def/world/{prefabFileName}");
+                var prefabFilePath = queue.Dequeue();
+                var prefabFile = UberFileSystem.Instance.GetFile(prefabFilePath);
+                if (prefabFile == null) continue;
 
-                var data = prefabFile.Entry.Read();
-                var lines = Encoding.UTF8.GetString(data).Split('\n');
+                var lines = Mods.DefText.Read(prefabFile, prefabFilePath).Split('\n');
 
                 var token = 0UL;
                 var path = "";
                 var category = "";
                 foreach (var line in lines)
                 {
+                    var trimmed = line.Trim();
+                    if (trimmed.StartsWith("@include"))
+                    {
+                        var include = trimmed.Substring("@include".Length).Trim().Trim('"');
+                        if (include.Length == 0) continue;
+                        var includePath = include.StartsWith("/") ? include.TrimStart('/') : "def/world/" + include;
+                        if (seen.Add(includePath)) queue.Enqueue(includePath);
+                        continue;
+                    }
+
                     var (validLine, key, value) = SiiHelper.ParseLine(line);
                     if (validLine)
                     {
@@ -212,21 +225,8 @@ namespace TsMap
                 var roadLookFile = UberFileSystem.Instance.GetFile(roadLookPath);
                 if (roadLookFile == null) continue;
 
-                var data = roadLookFile.Entry.Read();
                 // Mods liefern Definitionen oft verschlüsselt (ScsC)
-                if (data.Length >= 4 && BitConverter.ToUInt32(data, 0) == 0x43736353)
-                {
-                    try
-                    {
-                        data = Mods.SiiFile.Decrypt(data);
-                    }
-                    catch (Exception e)
-                    {
-                        Logger.Instance.Error($"Could not decrypt '{roadLookPath}': {e.Message}");
-                        continue;
-                    }
-                }
-                var lines = Encoding.UTF8.GetString(data).Split('\n');
+                var lines = Mods.DefText.Read(roadLookFile, roadLookPath).Split('\n');
                 TsRoadLook roadLook = null;
 
                 foreach (var line in lines)
@@ -288,8 +288,8 @@ namespace TsMap
             {
                 var ferryConnectionFile = UberFileSystem.Instance.GetFile(ferryConnectionFilePath);
 
-                var data = ferryConnectionFile.Entry.Read();
-                var lines = Encoding.UTF8.GetString(data).Split('\n');
+                if (ferryConnectionFile == null) continue;
+                var lines = Mods.DefText.Read(ferryConnectionFile, ferryConnectionFilePath).Split('\n');
 
                 TsFerryConnection conn = null;
 

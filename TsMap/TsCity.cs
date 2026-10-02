@@ -26,9 +26,7 @@ namespace TsMap
 
             if (file == null) return;
 
-            var fileContent = file.Entry.Read();
-
-            var lines = Encoding.UTF8.GetString(fileContent).Split('\n');
+            var lines = Mods.DefText.Read(file, path).Split('\n');
             var offsetCount = 0;
             XOffsets = new List<int>();
             YOffsets = new List<int>();

@@ -73,6 +73,7 @@
     <Compile Include="FileSystem\Entry.cs" />
     <Compile Include="FileSystem\Folder\FolderArchiveFile.cs" />
     <Compile Include="Mods\DlcDetector.cs" />
+    <Compile Include="Mods\DefText.cs" />
     <Compile Include="Mods\ModProfile.cs" />
     <Compile Include="Mods\SiiFile.cs" />
     <Compile Include="FileSystem\Hash\HashEntryV1.cs" />
