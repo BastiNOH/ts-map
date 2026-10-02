@@ -25,9 +25,7 @@ namespace TsMap
 
             if (file == null) return;
 
-            var fileContent = file.Entry.Read();
-
-            var lines = Encoding.UTF8.GetString(fileContent).Split('\n');
+            var lines = Mods.DefText.Read(file, path).Split('\n');
 
             foreach (var line in lines)
             {
