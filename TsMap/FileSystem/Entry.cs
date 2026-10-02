@@ -53,6 +53,14 @@
         /// <returns>Inflated data</returns>
         protected abstract byte[] Inflate(byte[] buff);
 
+        /// <summary>
+        /// Ob sich der Eintrag entpacken lässt (z.B. nicht bei unbekannter Kompressionsmethode)
+        /// </summary>
+        public virtual bool IsReadable()
+        {
+            return true;
+        }
+
 
         /// <returns>Given hash for hash files, CityHashed path for zip files</returns>
         public ulong GetHash()
