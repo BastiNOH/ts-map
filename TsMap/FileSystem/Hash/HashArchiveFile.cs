@@ -160,15 +160,7 @@ namespace TsMap.FileSystem.Hash
                     }
                     else
                     {
-                        if (UberFileSystem.Instance.Files.ContainsKey(entry.GetHash()))
-                        {
-                            UberFileSystem.Instance.Files[entry.GetHash()] =
-                                new UberFile(entry); // overwrite if there already is a file with the current hash
-                        }
-                        else
-                        {
-                            UberFileSystem.Instance.Files.Add(entry.GetHash(), new UberFile(entry));
-                        }
+                        UberFileSystem.Instance.AddFile(entry); // overwrite if there already is a file with the current hash
                     }
                 }
             }
@@ -307,15 +299,7 @@ namespace TsMap.FileSystem.Hash
                     }
                     else
                     {
-                        if (UberFileSystem.Instance.Files.ContainsKey(entry.GetHash()))
-                        {
-                            UberFileSystem.Instance.Files[entry.GetHash()] =
-                                new UberFile(entry); // overwrite if there already is a file with the current hash
-                        }
-                        else
-                        {
-                            UberFileSystem.Instance.Files.Add(entry.GetHash(), new UberFile(entry));
-                        }
+                        UberFileSystem.Instance.AddFile(entry); // overwrite if there already is a file with the current hash
                     }
                   }
                   catch (Exception e) when (e is IndexOutOfRangeException || e is ArgumentException || e is IOException || e is InvalidDataException)

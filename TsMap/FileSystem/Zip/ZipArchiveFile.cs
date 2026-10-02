@@ -126,14 +126,9 @@ namespace TsMap.FileSystem.Zip
                 }
                 else
                 {
-                    if (UberFileSystem.Instance.Files.ContainsKey(entry.GetHash()))
-                    {
-                        UberFileSystem.Instance.Files[entry.GetHash()] = new UberFile(entry);
-                    }
-                    else
+                    if (UberFileSystem.Instance.AddFile(entry))
                     {
                         parentDir.AddSubFileName(Path.GetFileName(name));
-                        UberFileSystem.Instance.Files.Add(entry.GetHash(), new UberFile(entry));
                     }
                 }
             }

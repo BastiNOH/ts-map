@@ -196,17 +196,22 @@ namespace TsMap.FileSystem
         {
             if (string.IsNullOrEmpty(path)) return null; // z.B. Material ohne Textur
             // Gibt es die Datei mit und ohne Salt, gewinnt das zuletzt eingehängte Archiv (Mod-Priorität)
+            // Nicht entpackbare Versionen (z.B. unbekannte Kompression) zählen nur, wenn es keine lesbare gibt.
             UberFile best = null;
             var bestOrder = int.MinValue;
+            var bestReadable = false;
             foreach (var hash in CandidateHashes(path))
             {
                 UberFile file;
                 if (!Files.TryGetValue(hash, out file) || file == null) continue;
+                file = file.Resolve();
+                var readable = file.Entry == null || file.Entry.IsReadable();
                 var order = file.Entry?.GetArchiveFile()?.MountOrder ?? 0;
-                if (best == null || order > bestOrder)
+                if (best == null || (readable && !bestReadable) || (readable == bestReadable && order > bestOrder))
                 {
                     best = file;
                     bestOrder = order;
+                    bestReadable = readable;
                 }
             }
             return best;
@@ -222,11 +227,21 @@ namespace TsMap.FileSystem
         /// </returns>
         public UberFile GetFile(ulong pathHash)
         {
-            if (Files.ContainsKey(pathHash))
-            {
-                return Files[pathHash];
-            }
-            return null;
+            UberFile file;
+            return Files.TryGetValue(pathHash, out file) ? file?.Resolve() : null;
+        }
+
+        /// <summary>
+        /// Registriert eine Datei. Eine bereits vorhandene Datei mit gleichem Hash wird überdeckt,
+        /// bleibt aber als Fallback erhalten (falls die neue nicht entpackt werden kann).
+        /// </summary>
+        /// <returns>true, wenn es den Hash bisher nicht gab</returns>
+        internal bool AddFile(Entry entry)
+        {
+            UberFile existing;
+            Files.TryGetValue(entry.GetHash(), out existing);
+            Files[entry.GetHash()] = new UberFile(entry) { Fallback = existing };
+            return existing == null;
         }
     }
 }
