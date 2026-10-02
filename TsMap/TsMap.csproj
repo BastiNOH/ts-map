@@ -98,6 +98,7 @@
     <Compile Include="Common\ScsToken.cs" />
     <Compile Include="JsonHelper.cs" />
     <Compile Include="MapPalette.cs" />
+    <Compile Include="Map\Overlays\Bc7Decoder.cs" />
     <Compile Include="Map\Overlays\ColorTypes.cs" />
     <Compile Include="Map\Overlays\Dds.cs" />
     <Compile Include="Map\Overlays\MapOverlay.cs" />

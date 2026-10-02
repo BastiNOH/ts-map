@@ -260,6 +260,12 @@ namespace TsMap.Cli
             var exporter = new TsMap.Map.VectorExporter(mapper);
             exporter.Collect();
             Console.WriteLine($"Vektorkarte: {exporter.FeatureCount} Formen, Zoomstufen 0-{maxZoom}");
+            var guardNames = mapper.GetDlcGuardsForCurrentGame().GroupBy(g => g.Index).ToDictionary(g => g.Key, g => g.First().Name);
+            foreach (var hidden in exporter.HiddenByGuard.OrderByDescending(h => h.Value))
+                Console.WriteLine($"  Ausgeblendet (DLC fehlt): {hidden.Value} Objekte mit Guard {guardNames[hidden.Key]} ({hidden.Key})");
+            if (exporter.UnknownGuards.Count > 0)
+                Console.WriteLine("  Unbekannte DLC-Guards (werden gezeichnet): " +
+                                  string.Join(", ", exporter.UnknownGuards.OrderBy(u => u.Key).Select(u => $"{u.Key}: {u.Value} Objekte")));
             var count = exporter.Export(outDir, pos0.X, pos0.Y, zoom0, maxZoom, msg => Console.WriteLine("  " + msg));
 
             // Leaflet liest daraus, bis zu welcher Stufe Vektor-Kacheln vorliegen (darüber wird vergrößert)

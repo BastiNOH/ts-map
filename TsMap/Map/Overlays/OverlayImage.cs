@@ -163,6 +163,9 @@ namespace TsMap.Map.Overlays
                 pixelDataOffset = (ddpf.FourCc == MemoryHelper.MakeFourCc('D', 'X', '1', '0')) ? 0x94 : 0x80;
 
                 Format = Dds.GetDXGIFormat(ddpf);
+                // BC7 & Co. stehen im DX10-Zusatzkopf
+                if (ddpf.FourCc == MemoryHelper.MakeFourCc('D', 'X', '1', '0') && _stream.Length >= 0x94)
+                    Format = (DxgiFormat) MemoryHelper.ReadUInt32(_stream, 0x80);
 
             }
 
@@ -194,6 +197,11 @@ namespace TsMap.Map.Overlays
                 case DxgiFormat.FormatBc3Unorm:
                 case DxgiFormat.FormatBc3UnormSrgb:
                     ParseDxt5(pixelDataOffset);
+                    break;
+                case DxgiFormat.FormatBc7Typeless:
+                case DxgiFormat.FormatBc7Unorm:
+                case DxgiFormat.FormatBc7UnormSrgb:
+                    ParseBc7(pixelDataOffset);
                     break;
                 default:
                     Logger.Instance.Error($"No support for dds format '{Format}' for '{Mat.TextureSource}'");
@@ -290,6 +298,35 @@ namespace TsMap.Map.Overlays
                 var rgba = MemoryHelper.ReadUInt32(_stream, fileOffset += 0x04);
                 _pixelData[i] = new Color8888(0xFF, (byte)((rgba >> 0x10) & 0xFF),
                     (byte)((rgba >> 0x08) & 0xFF), (byte)(rgba & 0xFF));
+            }
+        }
+
+        private void ParseBc7(int pixelDataOffset)
+        {
+            var blocksX = (int) ((Width + 3) / 4);
+            var blocksY = (int) ((Height + 3) / 4);
+            if (_stream.Length - pixelDataOffset < (long) blocksX * blocksY * 16)
+            {
+                Valid = false;
+                Logger.Instance.Error($"Invalid DDS file (size), '{Mat.TextureSource}'");
+                return;
+            }
+
+            _pixelData = new Color8888[Width * Height];
+            var rgba = new byte[64];
+            for (var by = 0; by < blocksY; by++)
+            for (var bx = 0; bx < blocksX; bx++)
+            {
+                Bc7Decoder.DecodeBlock(_stream, pixelDataOffset + (by * blocksX + bx) * 16, rgba);
+                for (var py = 0; py < 4; py++)
+                for (var px = 0; px < 4; px++)
+                {
+                    var x = bx * 4 + px;
+                    var y = by * 4 + py;
+                    if (x >= Width || y >= Height) continue;
+                    var i = (py * 4 + px) * 4;
+                    _pixelData[y * Width + x] = new Color8888(rgba[i + 3], rgba[i], rgba[i + 1], rgba[i + 2]);
+                }
             }
         }
 
