@@ -36,6 +36,7 @@ namespace TsMap.Cli
             public bool Vector = true;
             public int VectorZoom = 8;
             public bool ListOnly;
+            public bool Verbose;
             public bool NoMods;
             public bool DlcAuto = true;
             public readonly List<string> DlcOn = new List<string>();
@@ -63,6 +64,9 @@ namespace TsMap.Cli
                 PrintUsage();
                 return 0;
             }
+
+            // ts-map protokolliert jede fehlende Kleinigkeit; das gehört in die Logdatei, nicht auf die Konsole
+            TsMap.Helpers.Logger.Logger.ConsoleOutput = o.Verbose;
 
             var game = o.Game.Value;
             var gameDir = o.GameDir ?? SteamLocator.FindGameDir(game);
@@ -155,7 +159,10 @@ namespace TsMap.Cli
                 Console.Error.WriteLine("Karte konnte nicht geladen werden (Details im ts-map Log unter %LOCALAPPDATA%\\ts-map\\TsMap.log).");
                 return 1;
             }
-            Console.WriteLine($"Karte geladen in {sw.Elapsed.TotalSeconds:0.0}s ({mapper.Cities.Count} Städte).");
+            Console.WriteLine($"Karte geladen in {sw.Elapsed.TotalSeconds:0.0}s ({mapper.Cities.Count} Städte, {mapper.Roads.Count} Straßen, {mapper.Prefabs.Count} Prefabs).");
+            if (mapper.MissingRoadLookCount > 0)
+                Console.WriteLine($"  Hinweis: {mapper.MissingRoadLookCount} Straßentypen ohne Definition (z.B. aus Mods) - mit Standardbreite gezeichnet.");
+            PrintLogSummary();
 
             CheckDlcs(mapper, gameDir, o);
 
@@ -167,7 +174,15 @@ namespace TsMap.Cli
             if (o.Tiles && o.Vector) GenerateVectorTiles(mapper, outDir, o.VectorZoom);
 
             Console.WriteLine($"Fertig in {sw.Elapsed.TotalMinutes:0.0} min -> {outDir}");
+            PrintLogSummary();
             return 0;
+        }
+
+        private static void PrintLogSummary()
+        {
+            var log = TsMap.Helpers.Logger.Logger.Instance;
+            if (log.ErrorCount + log.WarningCount == 0) return;
+            Console.WriteLine($"  ts-map Log: {log.ErrorCount} Fehler, {log.WarningCount} Warnungen (meist fehlende Icons/Definitionen aus Mods) -> {log.LogFilePath}");
         }
 
         private static List<TsMap.Common.DlcGuard> DlcGuardsEts2() => TsMap.Common.Consts.DefaultEts2DlcGuards;
@@ -318,6 +333,7 @@ namespace TsMap.Cli
                         break;
                     case "--vector-zoom": o.VectorZoom = int.Parse(Next()); break;
                     case "--list": o.ListOnly = true; break;
+                    case "--verbose": o.Verbose = true; break;
                     case "--no-mods": o.NoMods = true; break;
                     case "--exclude": o.Exclude.Add(Next()); break;
                     case "--workshop-dir": o.ExtraWorkshopDirs.Add(Next()); break;
@@ -361,7 +377,8 @@ namespace TsMap.Cli
   --dlc-aus <guard>      DLC-Guard abschalten (mehrfach möglich)
   --no-tiles             nur JSON-Dateien exportieren
   --no-mods              ohne Mods rendern
-  --list                 nur erkannte Mods, Reihenfolge und DLCs anzeigen");
+  --list                 nur erkannte Mods, Reihenfolge und DLCs anzeigen
+  --verbose              ts-map-Log auch auf der Konsole ausgeben (sonst nur in der Logdatei)");
         }
     }
 
