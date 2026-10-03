@@ -28,6 +28,8 @@ namespace TsMap.FileSystem.Hash
     {
         NoCompression = 0,
         Zlib = 1,
+        /// <summary>Rohes Deflate ohne zlib-Kopf (u.a. geschützte Mods wie Beyond by TerraMaps)</summary>
+        Deflate = 2,
         Gdeflate = 3
     }
 

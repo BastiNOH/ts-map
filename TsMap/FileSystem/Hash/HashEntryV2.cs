@@ -80,6 +80,11 @@ namespace TsMap.FileSystem.Hash
                             $"Possible incorrect zlib inflate for entry {GetHash()} (0x{GetHash():x}) of '{GetArchiveFile().GetPath()}', {bytesWritten} bytes written out of {GetSize()}");
                     }
                 }
+                else if (_plainMetadata.CompressionMethod == HashFsCompressionMethod.Deflate)
+                {
+                    // sonst die übrigen Verfahren durchprobieren (meldet sich einmal je Archiv)
+                    if (!TryDeflate(buff, 0, dest)) return InflateUnknown(buff);
+                }
                 else if (_plainMetadata.CompressionMethod == HashFsCompressionMethod.Gdeflate)
                 {
                     var result = Gdeflate.Inflate(ref dest, GetSize(), buff, GetCompressedSize());

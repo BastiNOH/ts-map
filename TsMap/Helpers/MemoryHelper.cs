@@ -230,6 +230,13 @@ namespace TsMap.Helpers
         /// </summary>
         internal static byte[] InflateZlibTolerant(byte[] data, long size, string what)
         {
+            // Block genau so groß wie die Daten und ohne zlib-Kopf (0x78): unkomprimiert abgelegt (z.B. Beyond)
+            if (data.Length == size && (data.Length < 2 || data[0] != 0x78))
+            {
+                Logger.Logger.Instance.Debug($"{what}: stored uncompressed");
+                return data;
+            }
+
             var decompressor = IntPtr.Zero;
             try
             {
