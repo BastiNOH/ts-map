@@ -310,9 +310,13 @@ namespace TsMap.Mods
             var name = userProfile.GetString("profile_name");
             if (!string.IsNullOrEmpty(name)) profile.Name = name;
 
+            // profile.sii speichert die Liste von unten nach oben: active_mods[0] ist die Mod mit der
+            // niedrigsten Priorität (ganz unten im Mod-Manager). ActiveMods ist wie im Spiel geordnet:
+            // erster Eintrag = oben = höchste Priorität.
             profile.ActiveMods = userProfile.GetArray("active_mods")
                 .Where(e => !string.IsNullOrWhiteSpace(e))
                 .Select(e => new ActiveMod(e))
+                .Reverse()
                 .ToList();
         }
 
