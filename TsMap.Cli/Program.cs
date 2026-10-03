@@ -43,6 +43,8 @@ namespace TsMap.Cli
             public readonly List<string> DlcOff = new List<string>();
             public readonly List<string> Exclude = new List<string>();
             public readonly List<string> ExtraWorkshopDirs = new List<string>();
+            public readonly List<string> Analyse = new List<string>();
+            public readonly List<string> AnalyseMaps = new List<string>();
         }
 
         private static int Main(string[] args)
@@ -64,6 +66,8 @@ namespace TsMap.Cli
                 PrintUsage();
                 return 0;
             }
+
+            if (o.Analyse.Count > 0) return RunAnalyse(o);
 
             // ts-map protokolliert jede fehlende Kleinigkeit; das gehört in die Logdatei, nicht auf die Konsole
             TsMap.Helpers.Logger.Logger.ConsoleOutput = o.Verbose;
@@ -362,10 +366,14 @@ namespace TsMap.Cli
                         break;
                     case "--dlc-an": o.DlcOn.Add(Next()); break;
                     case "--dlc-aus": o.DlcOff.Add(Next()); break;
+                    case "--analyse":
+                    case "--analyze": o.Analyse.Add(Next()); break;
+                    case "--analyse-karte": o.AnalyseMaps.Add(Next()); break;
                     default: throw new ArgumentException($"Unbekannte Option '{args[i]}'");
                 }
             }
 
+            if (o.Analyse.Count > 0) return o;
             if (o.Game == null) throw new ArgumentException("--game fehlt (ets2 oder ats)");
             if (o.MinZoom < 0 || o.MaxZoom > 18 || o.MinZoom > o.MaxZoom) throw new ArgumentException("--zoom muss im Bereich 0-18 liegen, z.B. 0-8");
             if (o.VectorZoom < 0 || o.VectorZoom > 12) throw new ArgumentException("--vector-zoom muss im Bereich 0-12 liegen");
@@ -395,7 +403,44 @@ namespace TsMap.Cli
   --no-tiles             nur JSON-Dateien exportieren
   --no-mods              ohne Mods rendern
   --list                 nur erkannte Mods, Reihenfolge und DLCs anzeigen
-  --verbose              ts-map-Log auch auf der Konsole ausgeben (sonst nur in der Logdatei)");
+  --verbose              ts-map-Log auch auf der Konsole ausgeben (sonst nur in der Logdatei)
+
+  TsMap.Cli --analyse <datei> [--analyse <datei> ...] [--analyse-karte <name>]
+                         untersucht Mod-Archive (Platzhalter erlaubt, z.B. ""...\mod\ROEX*.scs"") und
+                         schreibt das Ergebnis zusätzlich nach %LOCALAPPDATA%\ts-map\Analyse.txt;
+                         --analyse-karte: Kartenname für die Sektorsuche (Standard: europe und usa)");
+        }
+
+        private static int RunAnalyse(Options o)
+        {
+            var files = new List<string>();
+            foreach (var pattern in o.Analyse)
+            {
+                var dir = Path.GetDirectoryName(pattern);
+                var name = Path.GetFileName(pattern);
+                if (string.IsNullOrEmpty(dir)) dir = ".";
+                if (name.IndexOfAny(new[] { '*', '?' }) >= 0 && Directory.Exists(dir))
+                    files.AddRange(Directory.GetFiles(dir, name).OrderBy(f => f, StringComparer.OrdinalIgnoreCase));
+                else if (File.Exists(pattern)) files.Add(pattern);
+                else Console.Error.WriteLine($"Nicht gefunden: {pattern}");
+            }
+            if (files.Count == 0) return 1;
+
+            var maps = o.AnalyseMaps.Count > 0 ? o.AnalyseMaps : new List<string> { "europe", "usa" };
+            var outFile = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ts-map", "Analyse.txt");
+            Directory.CreateDirectory(Path.GetDirectoryName(outFile));
+            using (var writer = new StreamWriter(outFile, false, new System.Text.UTF8Encoding(true)))
+            {
+                foreach (var file in files)
+                {
+                    Console.Error.WriteLine($"Analysiere {Path.GetFileName(file)} ...");
+                    var text = TsMap.FileSystem.ArchiveAnalyzer.Analyse(file, maps);
+                    Console.Write(text);
+                    writer.Write(text);
+                }
+            }
+            Console.WriteLine($"Gespeichert: {outFile}");
+            return 0;
         }
     }
 
