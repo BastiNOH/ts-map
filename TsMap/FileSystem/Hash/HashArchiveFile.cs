@@ -72,6 +72,27 @@ namespace TsMap.FileSystem.Hash
             return ascending >= (entryCount - 1) * 0.95;
         }
 
+        /// <summary>
+        /// Ordnerliste: uint Anzahl, je Eintrag ein Längenbyte, dann die Namen (ggf. mit Nullen aufgefüllt).
+        /// </summary>
+        private static bool LooksLikeDirectoryListing(byte[] data)
+        {
+            if (data == null || data.Length < 4) return false;
+            var count = BitConverter.ToUInt32(data, 0);
+            if (count > data.Length - 4) return false;
+            long end = 4 + count;
+            for (var i = 0; i < count; i++) end += data[4 + i];
+            if (end > data.Length) return false;
+            for (var i = 4 + (int) count; i < end; i++)
+            {
+                var c = data[i];
+                if (c < 0x20 || c == 0x7F) return false;
+            }
+            for (var i = (int) end; i < data.Length; i++)
+                if (data[i] != 0) return false;
+            return true;
+        }
+
         public override bool Parse()
         {
             if (!File.Exists(_path))
@@ -198,6 +219,7 @@ namespace TsMap.FileSystem.Hash
 
                 var badEntries = 0;
                 var decoyEntries = 0;
+                var disguisedFiles = 0;
                 for (var i = 0; i < entryCount; i++)
                 {
                   try
@@ -263,6 +285,20 @@ namespace TsMap.FileSystem.Hash
                     }
 
 
+                    byte[] dirSubData = null;
+                    if (entry.IsDirectory() && !entry.DirectoryFlag)
+                    {
+                        // Nur "Ordner"-Metadaten ohne Ordner-Flag: geschützte Mods tarnen so teils normale
+                        // Dateien (z.B. ROEX-Sektoren), andere (Beyond) löschen bei echten Ordnern das Flag.
+                        // Entscheidend ist, ob die Daten tatsächlich eine Ordnerliste sind.
+                        dirSubData = entry.Read();
+                        if (!LooksLikeDirectoryListing(dirSubData))
+                        {
+                            entry.DirectoryMetadata = false;
+                            disguisedFiles++;
+                        }
+                    }
+
                     if (entry.IsDirectory())
                     {
                         var dir = UberFileSystem.Instance.GetDirectory(entry.GetHash());
@@ -273,7 +309,7 @@ namespace TsMap.FileSystem.Hash
                             UberFileSystem.Instance.Directories[entry.GetHash()] = dir;
                         }
 
-                        var dirSubData = entry.Read();
+                        if (dirSubData == null) dirSubData = entry.Read();
                         if (dirSubData.Length < 4) continue;
 
                         var subItemCount = MemoryHelper.ReadUInt32(dirSubData, 0);
@@ -312,6 +348,8 @@ namespace TsMap.FileSystem.Hash
                     Logger.Instance.Warning($"'{Path.GetFileName(_path)}': {decoyEntries} entries without readable metadata skipped (protected archive?)");
                 if (badEntries > 0)
                     Logger.Instance.Warning($"'{Path.GetFileName(_path)}': {badEntries} invalid entries skipped");
+                if (disguisedFiles > 0)
+                    Logger.Instance.Info($"'{Path.GetFileName(_path)}': {disguisedFiles} files with directory metadata read as files");
                 if (entryCount == 0 && _hashHeader.EntryCount > 0) return false;
             }
 
