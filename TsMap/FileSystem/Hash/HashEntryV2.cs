@@ -30,6 +30,9 @@ namespace TsMap.FileSystem.Hash
         /// <summary>Metadaten-Typ "Directory" (geschützte Archive löschen teils das Flag)</summary>
         internal bool DirectoryMetadata { get; set; }
 
+        /// <summary>Ordner-Flag im Eintrag selbst</summary>
+        internal bool DirectoryFlag => MemoryHelper.IsBitSet(Flags >> 16, 0);
+
         public override byte[] Read()
         {
             var probe = _probeData;
@@ -244,7 +247,7 @@ namespace TsMap.FileSystem.Hash
 
         public override bool IsDirectory()
         {
-            return MemoryHelper.IsBitSet(Flags >> 16, 0) || DirectoryMetadata;
+            return DirectoryFlag || DirectoryMetadata;
         }
 
         public override bool IsCompressed()

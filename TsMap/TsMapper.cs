@@ -415,60 +415,6 @@ namespace TsMap
         /// <summary>Gelesene Kartensektoren und Objekte je Archiv (Dateiname), aus dem der Sektor stammt</summary>
         public Dictionary<string, SectorStats> SectorsByArchive { get; } = new Dictionary<string, SectorStats>(StringComparer.OrdinalIgnoreCase);
 
-        private readonly Dictionary<string, int> _emptySectorReports = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-        private static readonly string[] SectorSiblingExtensions = { ".aux", ".data", ".snd", ".desc" };
-
-        /// <summary>
-        /// Manche geschützte Karten-Mods liefern leere .base-Dateien; die Objekte stehen dann evtl. in den
-        /// übrigen Sektordateien (.aux/.data/...). Diese versuchsweise lesen und zur Analyse protokollieren.
-        /// </summary>
-        private void TryParseSectorSiblings(TsSector sec, string archiveName, List<TsSector> extraSectors)
-        {
-            int reported;
-            _emptySectorReports.TryGetValue(archiveName, out reported);
-            var report = reported < 3;
-            if (report) _emptySectorReports[archiveName] = reported + 1;
-
-            var info = new StringBuilder();
-            if (report)
-            {
-                var data = sec.GetUberFile()?.Entry?.Read() ?? Array.Empty<byte>();
-                info.Append($"Sector '{sec.FilePath}' from '{archiveName}' has no items: {data.Length} bytes, starts with {BitConverter.ToString(data, 0, Math.Min(24, data.Length))}");
-            }
-
-            var basePath = sec.FilePath.Substring(0, sec.FilePath.Length - ".base".Length);
-            foreach (var ext in SectorSiblingExtensions)
-            {
-                var path = basePath + ext;
-                var file = UberFileSystem.Instance.GetFile(path);
-                if (file == null) continue;
-
-                var sibling = new TsSector(this, path) { StrictTypes = true };
-                var stream = sibling.Stream ?? Array.Empty<byte>();
-                var before = MapItems.Count;
-                string result;
-                try
-                {
-                    if (stream.Length < 0x14) throw new InvalidDataException("too small");
-                    sibling.Parse();
-                    result = $"{MapItems.Count - before} items";
-                    extraSectors.Add(sibling);
-                }
-                catch (Exception e)
-                {
-                    // halb gelesene Objekte wieder entfernen
-                    if (MapItems.Count > before) MapItems.RemoveRange(before, MapItems.Count - before);
-                    result = $"not readable ({e.GetType().Name}: {e.Message})";
-                }
-
-                if (report)
-                    info.Append($"; {ext}: {stream.Length} bytes from '{Path.GetFileName(file.Entry.GetArchiveFile().GetPath())}', " +
-                                $"starts with {BitConverter.ToString(stream, 0, Math.Min(24, stream.Length))} -> {result}");
-            }
-
-            if (report) Logger.Instance.Info(info.ToString());
-        }
-
         /// <summary>Sektoren, die über ihren Namen gefunden wurden, aber in keiner Ordnerliste stehen.</summary>
         public int HiddenSectorCount { get; private set; }
 
@@ -533,10 +479,9 @@ namespace TsMap
 
             if (_sectorFiles == null) return;
             var preMapParseTime = DateTime.Now.Ticks;
-            Sectors = _sectorFiles.Select(file => new TsSector(this, file)).ToList();
+            // Mehrere Archive listen dieselben Sektoren (bzw. dieselbe .mbd) -> jeden Sektor nur einmal lesen
+            Sectors = _sectorFiles.Distinct(StringComparer.OrdinalIgnoreCase).Select(file => new TsSector(this, file)).ToList();
             SectorsByArchive.Clear();
-            var extraSectors = new List<TsSector>();
-            _emptySectorReports.Clear();
             foreach (var sec in Sectors)
             {
                 var archive = sec.GetUberFile()?.Entry?.GetArchiveFile()?.GetPath();
@@ -557,12 +502,9 @@ namespace TsMap
                     SectorStats stats;
                     if (!SectorsByArchive.TryGetValue(name, out stats)) SectorsByArchive[name] = stats = new SectorStats();
                     stats.Sectors++;
-                    if (MapItems.Count == itemsBefore && !name.StartsWith("base", StringComparison.OrdinalIgnoreCase) && !name.StartsWith("dlc_", StringComparison.OrdinalIgnoreCase))
-                        TryParseSectorSiblings(sec, name, extraSectors);
                     stats.Items += MapItems.Count - itemsBefore;
                 }
             }
-            Sectors.AddRange(extraSectors);
             foreach (var stats in SectorsByArchive)
                 Logger.Instance.Info($"Sectors from '{stats.Key}': {stats.Value.Sectors} ({stats.Value.Items} items)");
             Sectors.ForEach(sec => sec.ClearFileData());
