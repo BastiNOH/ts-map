@@ -190,6 +190,48 @@ namespace TsMap.Map
             return written;
         }
 
+        /// <summary>
+        /// Schreibt alle Fähr- und Zugverbindungen mit ihrem Verlauf in Spielkoordinaten als JSON,
+        /// z.B. damit das Fahrtenbuch den Sprung einer Route über eine Fähre durch die Linie ersetzen kann:
+        ///   [{"a":"hafen_a","b":"hafen_b","t":1,"p":[x0,z0,x1,z1,...]}, ...]   (t = 1: Zug)
+        /// </summary>
+        /// <returns>Anzahl geschriebener Verbindungen</returns>
+        public int ExportFerryRoutes(string path)
+        {
+            var train = new Dictionary<ulong, bool>();
+            foreach (var port in _mapper.FerryConnections) train[port.FerryPortId] = port.Train;
+
+            var done = new HashSet<string>();
+            var sb = new StringBuilder("[");
+            foreach (var port in _mapper.FerryConnections)
+            {
+                foreach (var conn in _mapper.LookupFerryConnection(port.FerryPortId))
+                {
+                    var a = conn.StartPortToken;
+                    var b = conn.EndPortToken;
+                    if (!done.Add(a < b ? a + "-" + b : b + "-" + a)) continue;
+
+                    if (done.Count > 1) sb.Append(',');
+                    sb.Append("{\"a\":\"").Append(ScsToken.TokenToString(a))
+                      .Append("\",\"b\":\"").Append(ScsToken.TokenToString(b)).Append('"');
+                    bool isTrain;
+                    if (train.TryGetValue(a, out isTrain) && isTrain) sb.Append(",\"t\":1");
+                    sb.Append(",\"p\":[");
+                    var points = FerryPoints(conn);
+                    for (var i = 0; i < points.Count; i++)
+                    {
+                        if (i > 0) sb.Append(',');
+                        sb.Append(points[i].X.ToString("0.#", CultureInfo.InvariantCulture)).Append(',')
+                          .Append(points[i].Y.ToString("0.#", CultureInfo.InvariantCulture));
+                    }
+                    sb.Append("]}");
+                }
+            }
+            sb.Append(']');
+            File.WriteAllText(path, sb.ToString(), new UTF8Encoding(false));
+            return done.Count;
+        }
+
         private static double[] Project(float[] points, GeoProjection projection)
         {
             var result = new double[points.Length];

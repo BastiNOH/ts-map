@@ -13,6 +13,9 @@ namespace TsMap.TsItem
 
         private bool _train;
 
+        /// <summary>Bahnhof (Zugverbindung) statt Fährhafen</summary>
+        public bool Train => _train;
+
         public TsFerryItem(TsSector sector, int startOffset) : base(sector, startOffset)
         {
             Valid = true;
