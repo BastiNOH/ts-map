@@ -145,6 +145,98 @@ namespace TsMap.Map
             return written;
         }
 
+        /// <summary>
+        /// Schreibt alle gesammelten Formen als GeoJSON-Sequenz (eine Feature-Zeile je Form) in WGS84,
+        /// z.B. als Eingabe für tippecanoe (PMTiles/MapLibre).
+        /// Eigenschaften: l = Ebene (0 Gebiet, 1 Prefab, 2 Straße, 3 Fähre), c = Farbe (0 Straße, 1 hell,
+        /// 2 dunkel, 3 grün, 4 Fähre), z = zIndex, d = 1 gestrichelt/geheim, w = Breite in Metern (Linien).
+        /// </summary>
+        /// <returns>Anzahl geschriebener Formen</returns>
+        public long ExportGeoJson(string path, GeoProjection projection, GeoCorrection correction = null)
+        {
+            long written = 0;
+            using var writer = new StreamWriter(path, false, new UTF8Encoding(false));
+            var sb = new StringBuilder();
+            foreach (var f in _features)
+            {
+                sb.Clear();
+                sb.Append("{\"type\":\"Feature\",\"properties\":{\"l\":").Append(f.Layer)
+                  .Append(",\"c\":").Append(f.Color)
+                  .Append(",\"z\":").Append(f.ZIndex);
+                if (f.Dashed) sb.Append(",\"d\":1");
+                if (!f.Polygon) sb.Append(",\"w\":").Append(Num(f.Width));
+                sb.Append("},\"geometry\":{\"type\":\"").Append(f.Polygon ? "Polygon" : "LineString")
+                  .Append("\",\"coordinates\":").Append(f.Polygon ? "[[" : "[");
+
+                var coords = f.Layer == 3 ? ProjectFerry(f.Points, projection) : Project(f.Points, projection);
+                if (correction != null)
+                    for (var i = 0; i < coords.Length; i += 2) correction.Apply(ref coords[i], ref coords[i + 1]);
+                int count = coords.Length / 2;
+                for (var i = 0; i < count; i++)
+                {
+                    if (i > 0) sb.Append(',');
+                    sb.Append('[').Append(Coord(coords[i * 2])).Append(',').Append(Coord(coords[i * 2 + 1])).Append(']');
+                }
+                if (f.Polygon)
+                {
+                    // Ring schließen
+                    sb.Append(",[").Append(Coord(coords[0])).Append(',').Append(Coord(coords[1])).Append("]]]");
+                }
+                else sb.Append(']');
+                sb.Append("}}");
+                writer.WriteLine(sb.ToString());
+                written++;
+            }
+            return written;
+        }
+
+        private static double[] Project(float[] points, GeoProjection projection)
+        {
+            var result = new double[points.Length];
+            for (var i = 0; i < points.Length; i += 2)
+                (result[i], result[i + 1]) = projection.ToLonLat(points[i], points[i + 1]);
+            return result;
+        }
+
+        // Fähren: Britische Inseln, Island usw. haben eine eigene Umrechnung. Punkt für Punkt umgerechnet würde eine
+        // Linie zwischen zwei Bereichen mitten im Meer springen. Daher alle Punkte im
+        // Maßstab der Häfen; liegen die Häfen auf verschiedenen Seiten, gleitend von einem zum anderen
+        // (nach Anteil der Strecke).
+        private static double[] ProjectFerry(float[] points, GeoProjection projection)
+        {
+            int count = points.Length / 2;
+            int startRegion = projection.RegionOf(points[0], points[1]);
+            int endRegion = projection.RegionOf(points[points.Length - 2], points[points.Length - 1]);
+
+            var dist = new double[count];
+            for (var i = 1; i < count; i++)
+            {
+                double dx = points[i * 2] - points[i * 2 - 2], dz = points[i * 2 + 1] - points[i * 2 - 1];
+                dist[i] = dist[i - 1] + Math.Sqrt(dx * dx + dz * dz);
+            }
+
+            var result = new double[points.Length];
+            for (var i = 0; i < count; i++)
+            {
+                double x = points[i * 2], z = points[i * 2 + 1];
+                var (lonA, latA) = projection.ToLonLat(x, z, startRegion);
+                if (startRegion == endRegion)
+                {
+                    result[i * 2] = lonA;
+                    result[i * 2 + 1] = latA;
+                    continue;
+                }
+                var (lonB, latB) = projection.ToLonLat(x, z, endRegion);
+                double t = dist[count - 1] > 0 ? dist[i] / dist[count - 1] : 0;
+                result[i * 2] = lonA + (lonB - lonA) * t;
+                result[i * 2 + 1] = latA + (latB - latA) * t;
+            }
+            return result;
+        }
+
+        // 7 Nachkommastellen = ~1 cm
+        private static string Coord(double v) => v.ToString("0.#######", CultureInfo.InvariantCulture);
+
         private static int Clamp(int v, int tilesPerSide)
         {
             return v < 0 ? 0 : v >= tilesPerSide ? tilesPerSide - 1 : v;

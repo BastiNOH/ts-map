@@ -34,6 +34,7 @@ namespace TsMap.Cli
             public bool Tiles = true;
             public bool Png;
             public bool Vector = true;
+            public bool GeoJson;
             public int VectorZoom = 8;
             public bool ListOnly;
             public bool Verbose;
@@ -187,6 +188,7 @@ namespace TsMap.Cli
             var palette = new SimpleMapPalette();
             GenerateTiles(mapper, renderer, palette, outDir, o.MinZoom, o.MaxZoom, o.Tiles && o.Png);
             if (o.Tiles && o.Vector) GenerateVectorTiles(mapper, outDir, o.VectorZoom);
+            if (o.Tiles && o.GeoJson) GenerateGeoJson(mapper, outDir);
 
             Console.WriteLine($"Fertig in {sw.Elapsed.TotalMinutes:0.0} min -> {outDir}");
             PrintLogSummary();
@@ -281,6 +283,16 @@ namespace TsMap.Cli
                 $"{{\"format\":1,\"tileSize\":{TileSize},\"maxZoom\":{maxZoom},\"tiles\":{count},\"created\":\"{DateTime.UtcNow:yyyy-MM-ddTHH:mm:ssZ}\"}}");
         }
 
+        // Formen in echten Koordinaten (WGS84) als GeoJSON-Sequenz, z.B. für tippecanoe -> PMTiles -> MapLibre
+        private static void GenerateGeoJson(TsMapper mapper, string outDir)
+        {
+            var exporter = new TsMap.Map.VectorExporter(mapper);
+            exporter.Collect();
+            var path = Path.Combine(outDir, "map.geojsonl");
+            var count = exporter.ExportGeoJson(path, TsMap.Map.GeoProjection.For(mapper.IsEts2));
+            Console.WriteLine($"GeoJSON: {count} Formen -> {path}");
+        }
+
         private static void SaveTile(TsMapRenderer renderer, MapPalette palette, int z, int x, int y, PointF pos, float zoom, string outDir)
         {
             using (var bitmap = new Bitmap(TileSize, TileSize))
@@ -350,7 +362,8 @@ namespace TsMap.Cli
                         if (fmt == "vector" || fmt == "vektor") { o.Vector = true; o.Png = false; }
                         else if (fmt == "png") { o.Vector = false; o.Png = true; }
                         else if (fmt == "both" || fmt == "beide") { o.Vector = true; o.Png = true; }
-                        else throw new ArgumentException("--format vector|png|beide");
+                        else if (fmt == "geojson") { o.Vector = false; o.Png = false; o.GeoJson = true; }
+                        else throw new ArgumentException("--format vector|png|beide|geojson");
                         break;
                     case "--vector-zoom": o.VectorZoom = int.Parse(Next()); break;
                     case "--list": o.ListOnly = true; break;
@@ -394,7 +407,8 @@ namespace TsMap.Cli
   --game-version <ver>   z.B. 1.61 – wählt bei Workshop-Mods das passende Paket (Standard: neuestes)
   --workshop-dir <pfad>  zusätzlicher Workshop-Ordner (steamapps\workshop\content\<appid>)
   --exclude <text>       Mod überspringen, deren Name/Paket den Text enthält (mehrfach möglich)
-  --format <art>         vector: Vektor-Kacheln für Leaflet (Standard), png: Bild-Kacheln, beide
+  --format <art>         vector: Vektor-Kacheln für Leaflet (Standard), png: Bild-Kacheln, beide,
+                         geojson: Formen in WGS84 als map.geojsonl (für tippecanoe/MapLibre)
   --zoom <von-bis>       Zoomstufen der PNG-Kacheln (Standard: 0-9)
   --vector-zoom <n>      höchste Zoomstufe der Vektor-Kacheln, darüber wird scharf vergrößert (Standard: 8)
   --dlc <auto|alle>      auto: nur installierte DLCs rendern (Standard), alle: ts-map-Standard
