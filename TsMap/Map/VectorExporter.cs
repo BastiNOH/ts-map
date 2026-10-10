@@ -155,10 +155,12 @@ namespace TsMap.Map
         public long ExportGeoJson(string path, GeoProjection projection, GeoCorrection correction = null)
         {
             long written = 0;
+            var blend = BlendRegionCrossings(projection);
             using var writer = new StreamWriter(path, false, new UTF8Encoding(false));
             var sb = new StringBuilder();
-            foreach (var f in _features)
+            for (var fi = 0; fi < _features.Count; fi++)
             {
+                var f = _features[fi];
                 sb.Clear();
                 sb.Append("{\"type\":\"Feature\",\"properties\":{\"l\":").Append(f.Layer)
                   .Append(",\"c\":").Append(f.Color)
@@ -168,7 +170,13 @@ namespace TsMap.Map
                 sb.Append("},\"geometry\":{\"type\":\"").Append(f.Polygon ? "Polygon" : "LineString")
                   .Append("\",\"coordinates\":").Append(f.Polygon ? "[[" : "[");
 
-                var coords = f.Layer == 3 ? ProjectFerry(f.Points, projection) : Project(f.Points, projection);
+                // Straßen über eine Bereichsgrenze (z.B. im Eurotunnel): über die ganze Kette gleitend umrechnen,
+                // Fähren und sonstige Linien über eine Grenze für sich gleitend
+                double[] coords;
+                Blend b;
+                if (blend.TryGetValue(fi, out b)) coords = ProjectBlended(f.Points, projection, b);
+                else if (f.Layer == 3 || (!f.Polygon && CrossesRegions(f.Points, projection))) coords = ProjectFerry(f.Points, projection);
+                else coords = Project(f.Points, projection);
                 if (correction != null)
                     for (var i = 0; i < coords.Length; i += 2) correction.Apply(ref coords[i], ref coords[i + 1]);
                 int count = coords.Length / 2;
@@ -238,6 +246,165 @@ namespace TsMap.Map
             for (var i = 0; i < points.Length; i += 2)
                 (result[i], result[i + 1]) = projection.ToLonLat(points[i], points[i + 1]);
             return result;
+        }
+
+        /// <summary>Gleitende Umrechnung einer Linie: Anteil t je Punkt, Bereich am Anfang (t = 0) und Ende (t = 1).</summary>
+        private class Blend
+        {
+            public double[] T;
+            public int From, To;
+        }
+
+        /// <summary>Stellen, an denen Formen über eine Bereichsgrenze laufen (nach <see cref="ExportGeoJson"/>).</summary>
+        public List<string> RegionCrossings { get; } = new List<string>();
+
+        private const double MaxBlendChain = 100000;   // längere Ketten nicht verfolgen (Weltmaß)
+
+        /// <summary>
+        /// Straßen, die über eine Bereichsgrenze laufen (z.B. Eurotunnel UK - Festland): Die Umrechnungen beider
+        /// Bereiche passen an der Grenze nicht aufeinander, Punkt für Punkt umgerechnet entstünde ein Sprung.
+        /// Daher die Kette aus Straßenstücken ohne Abzweig (Knoten mit genau zwei Stücken) um die Grenze herum
+        /// verfolgen und über ihre ganze Länge gleitend vom einen Bereich zum anderen umrechnen.
+        /// </summary>
+        private Dictionary<int, Blend> BlendRegionCrossings(GeoProjection projection)
+        {
+            var result = new Dictionary<int, Blend>();
+            RegionCrossings.Clear();
+
+            (long, long) Key(float x, float z) => ((long)Math.Round(x * 2), (long)Math.Round(z * 2));
+            var ends = new Dictionary<(long, long), List<int>>();
+            for (var i = 0; i < _features.Count; i++)
+            {
+                var f = _features[i];
+                if (f.Layer != 2 || f.Polygon) continue;
+                var n = f.Points.Length;
+                foreach (var k in new[] { Key(f.Points[0], f.Points[1]), Key(f.Points[n - 2], f.Points[n - 1]) })
+                {
+                    List<int> list;
+                    if (!ends.TryGetValue(k, out list)) ends[k] = list = new List<int>();
+                    if (!list.Contains(i)) list.Add(i);
+                }
+            }
+
+            (long, long) StartKey(int i) => Key(_features[i].Points[0], _features[i].Points[1]);
+            (long, long) EndKey(int i) { var p = _features[i].Points; return Key(p[p.Length - 2], p[p.Length - 1]); }
+            double Length(int i)
+            {
+                var p = _features[i].Points; double len = 0;
+                for (var k = 2; k < p.Length; k += 2) len += Math.Sqrt(Math.Pow(p[k] - p[k - 2], 2) + Math.Pow(p[k + 1] - p[k - 1], 2));
+                return len;
+            }
+
+            for (var i = 0; i < _features.Count; i++)
+            {
+                var f = _features[i];
+                // Ein gemeinsamer Knoten liegt immer in genau einem Bereich - an einer Grenze enthält also
+                // mindestens ein Stück Punkte aus beiden
+                if (!CrossesRegions(f.Points, projection)) continue;
+                if (f.Layer != 2 || f.Polygon)
+                {
+                    // Prefabs/Flächen/Fähren werden nicht verkettet - nur melden
+                    if (f.Layer != 3) RegionCrossings.Add($"{LayerName(f.Layer)} bei {f.Points[0]:0},{f.Points[1]:0}: " +
+                        $"{RegionName(projection.RegionOf(f.Points[0], f.Points[1]))} / {RegionName(OtherRegion(f.Points, projection))}");
+                    continue;
+                }
+                if (result.ContainsKey(i)) continue;
+
+                // Kette (Stück, umgedreht?) in beide Richtungen verfolgen
+                var chain = new LinkedList<(int idx, bool rev)>();
+                chain.AddFirst((i, false));
+                var used = new HashSet<int> { i };
+                double total = Length(i);
+                for (var dir = 0; dir < 2; dir++)
+                {
+                    var key = dir == 0 ? EndKey(i) : StartKey(i);
+                    while (total < MaxBlendChain)
+                    {
+                        List<int> at;
+                        if (!ends.TryGetValue(key, out at) || at.Count != 2) break;   // Ende oder Abzweig
+                        var next = at[0] == (dir == 0 ? chain.Last.Value.idx : chain.First.Value.idx) ? at[1] : at[0];
+                        if (!used.Add(next)) break;                                    // Ring
+                        // vorwärts: Stück muss mit key beginnen; rückwärts: mit key enden
+                        bool rev = dir == 0 ? !StartKey(next).Equals(key) : !EndKey(next).Equals(key);
+                        if (dir == 0) { chain.AddLast((next, rev)); key = rev ? StartKey(next) : EndKey(next); }
+                        else { chain.AddFirst((next, rev)); key = rev ? EndKey(next) : StartKey(next); }
+                        total += Length(next);
+                    }
+                }
+
+                // Punkte der Kette in Fahrtrichtung, Bereiche an beiden Enden
+                var firstF = _features[chain.First.Value.idx].Points;
+                var lastF = _features[chain.Last.Value.idx].Points;
+                float ax = chain.First.Value.rev ? firstF[firstF.Length - 2] : firstF[0], az = chain.First.Value.rev ? firstF[firstF.Length - 1] : firstF[1];
+                float bx = chain.Last.Value.rev ? lastF[0] : lastF[lastF.Length - 2], bz = chain.Last.Value.rev ? lastF[1] : lastF[lastF.Length - 1];
+                int from = projection.RegionOf(ax, az), to = projection.RegionOf(bx, bz);
+
+                if (from == to)
+                {
+                    RegionCrossings.Add($"Straße bei {f.Points[0]:0},{f.Points[1]:0}: Kette {total / 1000:0.0} km beginnt und endet in " +
+                        $"{RegionName(from)} - Punkt für Punkt umgerechnet");
+                    foreach (var c in chain) used.Remove(c.idx);
+                    continue;
+                }
+
+                double run = 0;
+                foreach (var (idx, rev) in chain)
+                {
+                    var p = _features[idx].Points;
+                    int n = p.Length / 2;
+                    var t = new double[n];
+                    double prevX = 0, prevZ = 0;
+                    for (var k = 0; k < n; k++)
+                    {
+                        var j = rev ? n - 1 - k : k;
+                        double x = p[j * 2], z = p[j * 2 + 1];
+                        if (k > 0) run += Math.Sqrt((x - prevX) * (x - prevX) + (z - prevZ) * (z - prevZ));
+                        t[j] = total > 0 ? Math.Min(1, run / total) : 0;
+                        prevX = x; prevZ = z;
+                    }
+                    result[idx] = new Blend { T = t, From = from, To = to };
+                }
+                RegionCrossings.Add($"Straße {ax:0},{az:0} ({RegionName(from)}) -> {bx:0},{bz:0} ({RegionName(to)}): " +
+                    $"{chain.Count} Stücke, {total / 1000:0.0} km gleitend umgerechnet");
+            }
+            return result;
+        }
+
+        private static double[] ProjectBlended(float[] points, GeoProjection projection, Blend b)
+        {
+            var result = new double[points.Length];
+            for (var i = 0; i < points.Length / 2; i++)
+            {
+                double x = points[i * 2], z = points[i * 2 + 1];
+                var (lonA, latA) = projection.ToLonLat(x, z, b.From);
+                var (lonB, latB) = projection.ToLonLat(x, z, b.To);
+                result[i * 2] = lonA + (lonB - lonA) * b.T[i];
+                result[i * 2 + 1] = latA + (latB - latA) * b.T[i];
+            }
+            return result;
+        }
+
+        private static int OtherRegion(float[] points, GeoProjection projection)
+        {
+            var first = projection.RegionOf(points[0], points[1]);
+            for (var i = 2; i < points.Length; i += 2)
+            {
+                var r = projection.RegionOf(points[i], points[i + 1]);
+                if (r != first) return r;
+            }
+            return first;
+        }
+
+        private static string LayerName(byte layer) => layer == 0 ? "Fläche" : layer == 1 ? "Prefab" : layer == 2 ? "Straße" : "Fähre";
+        private static string RegionName(int region) =>
+            new[] { "Festland", "Britische Inseln", "Island", "Färöer", "Grönland" }.ElementAtOrDefault(region) ?? region.ToString();
+
+        private static bool CrossesRegions(float[] points, GeoProjection projection)
+        {
+            var first = projection.RegionOf(points[0], points[1]);
+            for (var i = 2; i < points.Length; i += 2)
+                if (projection.RegionOf(points[i], points[i + 1]) != first) return true;
+            return false;
         }
 
         // Fähren: Britische Inseln, Island usw. haben eine eigene Umrechnung. Punkt für Punkt umgerechnet würde eine

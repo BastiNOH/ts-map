@@ -291,6 +291,11 @@ namespace TsMap.Cli
             var path = Path.Combine(outDir, "map.geojsonl");
             var count = exporter.ExportGeoJson(path, TsMap.Map.GeoProjection.For(mapper.IsEts2));
             Console.WriteLine($"GeoJSON: {count} Formen -> {path}");
+            if (exporter.RegionCrossings.Count > 0)
+            {
+                Console.WriteLine($"Über eine Bereichsgrenze (eigener Maßstab für UK/Island/Färöer/Grönland): {exporter.RegionCrossings.Count}");
+                foreach (var c in exporter.RegionCrossings) Console.WriteLine("  " + c);
+            }
 
             // Verlauf der Fähr-/Zugverbindungen in Spielkoordinaten (Fahrtenbuch: Route über die Fähre zeichnen)
             var ferries = Path.Combine(outDir, "Ferries.json");
